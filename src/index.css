@@ -1,0 +1,123 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Ant Design Color Palette (Daybreak Blue) */
+    --background: 0 0% 98%;       /* #fbfbfb - light clean bg */
+    --foreground: 220 23% 15%;     /* #1f2329 - dark gray text */
+
+    --card: 0 0% 100%;             /* white card background */
+    --card-foreground: 220 23% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 23% 15%;
+
+    /* Ant Design Primary Blue (#1677ff) -> HSL: 215 100% 54% */
+    --primary: 215 100% 54%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Ant Design Secondary gray / light blue-gray */
+    --secondary: 214 20% 95%;      /* #f0f2f5 */
+    --secondary-foreground: 215 25% 27%;
+
+    --muted: 214 20% 95%;
+    --muted-foreground: 215 16% 47%; /* #697b8c */
+
+    --accent: 215 100% 96%;        /* very light blue for active items */
+    --accent-foreground: 215 100% 54%;
+
+    /* Ant Design Destructive / Error Red (#ff4d4f) -> HSL: 359 100% 65% */
+    --destructive: 359 100% 65%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Ant Design borders and inputs */
+    --border: 215 20% 90%;          /* #d9d9d9 border */
+    --input: 215 20% 90%;
+    --ring: 215 100% 54%;
+
+    /* Ant Design default border radius: 6px-8px */
+    --radius: 0.5rem; /* 8px */
+  }
+
+  .dark {
+    /* Ant Design Dark Palette */
+    --background: 216 28% 7%;      /* #09111e */
+    --foreground: 210 20% 90%;
+
+    --card: 216 28% 10%;           /* #0d192c */
+    --card-foreground: 210 20% 90%;
+
+    --popover: 216 28% 10%;
+    --popover-foreground: 210 20% 90%;
+
+    /* Dark primary Blue (#1668dc) */
+    --primary: 215 100% 47%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 216 20% 15%;
+    --secondary-foreground: 210 20% 90%;
+
+    --muted: 216 20% 15%;
+    --muted-foreground: 215 15% 60%;
+
+    --accent: 215 100% 15%;
+    --accent-foreground: 215 100% 54%;
+
+    --destructive: 359 100% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 216 20% 18%;
+    --input: 216 20% 18%;
+    --ring: 215 100% 47%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased font-sans;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  }
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 9999px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* Page transitions and animations */
+.page-enter {
+  opacity: 0;
+  transform: translateY(8px);
+}
+.page-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 250ms cubic-bezier(0.4, 0, 0.2, 1), transform 250ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Safe areas for mobile devices */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
