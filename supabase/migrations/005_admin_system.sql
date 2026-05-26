@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS password_reset_requests (
 );
 
 -- Apply updated_at trigger to password_reset_requests
+DROP TRIGGER IF EXISTS set_updated_at ON password_reset_requests;
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON password_reset_requests
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 

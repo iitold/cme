@@ -34,8 +34,10 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Apply triggers
+DROP TRIGGER IF EXISTS set_updated_at ON doctors;
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON doctors
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+DROP TRIGGER IF EXISTS set_updated_at ON courses;
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON courses
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
