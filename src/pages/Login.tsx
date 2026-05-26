@@ -102,7 +102,11 @@ export const Login: React.FC = () => {
         toast.success(t.loginSuccess)
         const profile = await fetchDoctorProfile(authData.user.id)
         if (profile) {
-          navigate('/')
+          if (profile.role === 'admin') {
+            navigate('/admin')
+          } else {
+            navigate('/')
+          }
         } else {
           navigate('/onboarding')
         }

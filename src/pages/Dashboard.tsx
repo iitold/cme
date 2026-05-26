@@ -1,5 +1,5 @@
 import React from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { 
   faPlus, 
@@ -25,6 +25,13 @@ export const Dashboard: React.FC = () => {
   const cmeStatus = useCMEStatus()
   const { language } = useLanguageStore()
   const t = translations[language]
+  const navigate = useNavigate()
+
+  React.useEffect(() => {
+    if (doctor?.role === 'admin') {
+      navigate('/admin', { replace: true })
+    }
+  }, [doctor, navigate])
 
   const isCourseValid = (endDateStr: string) => {
     const today = new Date()
