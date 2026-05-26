@@ -11,7 +11,19 @@ import {
   faTrash, 
   faSearch, 
   faSpinner, 
-  faXmark
+  faXmark,
+  faBook,
+  faFolderOpen,
+  faPlus,
+  faClock,
+  faGlobe,
+  faStethoscope,
+  faUserGraduate,
+  faCheck,
+  faTimes,
+  faEye,
+  faChartSimple,
+  faArrowTrendUp
 } from '@fortawesome/free-solid-svg-icons'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/auth.store'
@@ -23,6 +35,7 @@ import { Label } from '../components/ui/label'
 import { Card } from '../components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
+import { CertificateUpload } from '../components/cme/CertificateUpload'
 import { toast } from 'sonner'
 import type { Doctor } from '../types'
 
@@ -39,13 +52,14 @@ export const AdminConsole: React.FC = () => {
   const t = translations[language]
 
   // Tab state
-  const [activeTab, setActiveTab] = useState<'doctors' | 'requests'>('doctors')
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'doctors' | 'requests'>('dashboard')
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('')
 
   // Data state
   const [doctors, setDoctors] = useState<Doctor[]>([])
+  const [courses, setCourses] = useState<any[]>([])
   const [requests, setRequests] = useState<ResetRequest[]>([])
   const [bannedUserIds, setBannedUserIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
@@ -55,6 +69,25 @@ export const AdminConsole: React.FC = () => {
   const [resetPasswordUser, setResetPasswordUser] = useState<Doctor | ResetRequest | null>(null)
   const [newPassword, setNewPassword] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // CME Folder States
+  const [selectedDoctorCme, setSelectedDoctorCme] = useState<Doctor | null>(null)
+  const [doctorCourses, setDoctorCourses] = useState<any[]>([])
+  const [isCmeFormOpen, setIsCmeFormOpen] = useState(false)
+  const [editingCourse, setEditingCourse] = useState<any | null>(null)
+
+  // Course Form Fields
+  const [courseName, setCourseName] = useState('')
+  const [providerName, setProviderName] = useState('')
+  const [providerType, setProviderType] = useState<'university' | 'hospital' | 'association' | 'online' | 'other'>('hospital')
+  const [credits, setCredits] = useState<number>(24)
+  const [courseType, setCourseType] = useState<'theory' | 'clinical' | 'online' | 'conference'>('theory')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [verificationStatus, setVerificationStatus] = useState<'self_entered' | 'provider_verified' | 'institution_verified'>('self_entered')
+  const [notes, setNotes] = useState('')
+  const [certificateName, setCertificateName] = useState('')
+  const [certificateUrl, setCertificateUrl] = useState('')
 
   const loadData = useCallback(async (showSpinner = false) => {
     if (showSpinner) setLoading(true)
@@ -67,6 +100,15 @@ export const AdminConsole: React.FC = () => {
 
       if (docError) throw docError
       setDoctors(doctorsData || [])
+
+      // Fetch all courses
+      const { data: coursesData, error: courseError } = await supabase
+        .from('courses')
+        .select('*')
+        .order('end_date', { ascending: false })
+
+      if (courseError) throw courseError
+      setCourses(coursesData || [])
 
       // Fetch all password reset requests
       const { data: requestsData, error: reqError } = await supabase
@@ -93,9 +135,18 @@ export const AdminConsole: React.FC = () => {
   }, [language])
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadData()
+    loadData(true)
   }, [loadData])
+
+  // Sync selected doctor's courses when courses change
+  useEffect(() => {
+    if (selectedDoctorCme) {
+      const filtered = courses.filter(c => c.doctor_id === selectedDoctorCme.id)
+      setDoctorCourses(filtered)
+    } else {
+      setDoctorCourses([])
+    }
+  }, [selectedDoctorCme, courses])
 
   // Admin Actions
   const handleEditSubmit = async (e: React.FormEvent) => {
@@ -111,7 +162,6 @@ export const AdminConsole: React.FC = () => {
           specialty: editingDoctor.specialty || null,
           workplace: editingDoctor.workplace || null,
           province: editingDoctor.province || null,
-          cchn_number: editingDoctor.cchn_number || null,
           cme_target_credits: Number(editingDoctor.cme_target_credits),
           role: editingDoctor.role,
         })
@@ -135,7 +185,6 @@ export const AdminConsole: React.FC = () => {
     if (!resetPasswordUser || !newPassword) return
     setIsSubmitting(true)
     try {
-      // Find the user_id (if ResetRequest, we need to find the user_id from doctors by email)
       let targetUserId = ''
       if ('user_id' in resetPasswordUser) {
         targetUserId = resetPasswordUser.user_id
@@ -154,7 +203,6 @@ export const AdminConsole: React.FC = () => {
 
       if (error) throw error
 
-      // If it was a reset request, update status to completed
       if (!('user_id' in resetPasswordUser)) {
         await supabase
           .from('password_reset_requests')
@@ -177,7 +225,7 @@ export const AdminConsole: React.FC = () => {
   const handleToggleLock = async (doctor: Doctor) => {
     const isCurrentlyLocked = bannedUserIds.has(doctor.user_id)
     const actionText = isCurrentlyLocked 
-      ? (language === 'vi' ? 'Mở khóa' : 'Unlock') 
+      ? (language === 'vi' ? 'Mở khóa' : 'Lock') 
       : (language === 'vi' ? 'Khóa' : 'Lock')
       
     try {
@@ -188,7 +236,7 @@ export const AdminConsole: React.FC = () => {
 
       if (error) throw error
 
-      toast.success(`${actionText} tài khoản thành công!`)
+      toast.success(language === 'vi' ? `${actionText} tài khoản thành công!` : `Account ${actionText}ed successfully!`)
       loadData()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
@@ -236,6 +284,127 @@ export const AdminConsole: React.FC = () => {
     }
   }
 
+  // CME Specific Actions
+  const openCmeForm = (course: any | null = null) => {
+    if (course) {
+      setEditingCourse(course)
+      setCourseName(course.course_name || '')
+      setProviderName(course.provider_name || '')
+      setProviderType(course.provider_type || 'hospital')
+      setCredits(course.credits || 24)
+      setCourseType(course.course_type || 'theory')
+      setStartDate(course.start_date || '')
+      setEndDate(course.end_date || '')
+      setVerificationStatus(course.verification_status || 'self_entered')
+      setNotes(course.notes || '')
+      setCertificateName(course.certificate_name || '')
+      setCertificateUrl(course.certificate_url || '')
+    } else {
+      setEditingCourse(null)
+      setCourseName('')
+      setProviderName('')
+      setProviderType('hospital')
+      setCredits(24)
+      setCourseType('theory')
+      setStartDate('')
+      setEndDate('')
+      setVerificationStatus('self_entered')
+      setNotes('')
+      setCertificateName('')
+      setCertificateUrl('')
+    }
+    setIsCmeFormOpen(true)
+  }
+
+  const handleCmeFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedDoctorCme) return
+    setIsSubmitting(true)
+
+    const payload = {
+      doctor_id: selectedDoctorCme.id,
+      course_name: courseName,
+      provider_name: providerName,
+      provider_type: providerType,
+      credits: Number(credits),
+      course_type: courseType,
+      start_date: startDate,
+      end_date: endDate,
+      verification_status: verificationStatus,
+      notes: notes || null,
+      certificate_name: certificateName || null,
+      certificate_url: certificateUrl || null,
+    }
+
+    try {
+      if (editingCourse) {
+        const { error } = await supabase
+          .from('courses')
+          .update(payload)
+          .eq('id', editingCourse.id)
+        if (error) throw error
+        toast.success(language === 'vi' ? 'Cập nhật khóa học thành công!' : 'Course updated successfully!')
+      } else {
+        const { error } = await supabase
+          .from('courses')
+          .insert(payload)
+        if (error) throw error
+        toast.success(language === 'vi' ? 'Ghi nhận khóa học thành công!' : 'Course recorded successfully!')
+      }
+      setIsCmeFormOpen(false)
+      setEditingCourse(null)
+      loadData()
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err)
+      toast.error(message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleCmeToggleVerify = async (course: any) => {
+    const newStatus = course.verification_status === 'self_entered' ? 'provider_verified' : 'self_entered'
+    try {
+      const { error } = await supabase
+        .from('courses')
+        .update({ verification_status: newStatus })
+        .eq('id', course.id)
+      if (error) throw error
+      toast.success(
+        language === 'vi' 
+          ? (newStatus === 'provider_verified' ? 'Đã phê duyệt chứng chỉ!' : 'Đã hủy phê duyệt!')
+          : (newStatus === 'provider_verified' ? 'Certificate approved!' : 'Approval cancelled!')
+      )
+      loadData()
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err)
+      toast.error(message)
+    }
+  }
+
+  const handleCmeDelete = async (courseId: string) => {
+    const confirmDelete = window.confirm(
+      language === 'vi' 
+        ? 'Bạn có chắc chắn muốn xóa khóa học này không?' 
+        : 'Are you sure you want to delete this course?'
+    )
+    if (!confirmDelete) return
+
+    try {
+      const { error } = await supabase
+        .from('courses')
+        .delete()
+        .eq('id', courseId)
+      if (error) throw error
+      toast.success(language === 'vi' ? 'Xóa khóa học thành công!' : 'Course deleted successfully!')
+      loadData()
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err)
+      toast.error(message)
+    }
+  }
+
+  // Search logic
   const filteredDoctors = doctors.filter(doc => {
     const q = searchQuery.toLowerCase()
     return (
@@ -247,7 +416,54 @@ export const AdminConsole: React.FC = () => {
     )
   })
 
-  // Check role: Only allow admins (called after hook declarations)
+  // Compute Dashboard Analytics
+  const totalDoctors = doctors.length
+  const totalCourses = courses.length
+  const totalCredits = courses.reduce((sum, c) => sum + (c.credits || 0), 0)
+  const averageCredits = totalDoctors ? Math.round(totalCredits / totalDoctors) : 0
+
+  const specialtyCounts = doctors.reduce((acc: Record<string, number>, doc) => {
+    const spec = doc.specialty || (language === 'vi' ? 'Chưa cập nhật' : 'Unspecified')
+    acc[spec] = (acc[spec] || 0) + 1
+    return acc
+  }, {})
+  const sortedSpecialties = Object.entries(specialtyCounts).sort((a, b) => b[1] - a[1]).slice(0, 5)
+
+  const provinceCounts = doctors.reduce((acc: Record<string, number>, doc) => {
+    const prov = doc.province || (language === 'vi' ? 'Chưa cập nhật' : 'Unspecified')
+    acc[prov] = (acc[prov] || 0) + 1
+    return acc
+  }, {})
+  const sortedProvinces = Object.entries(provinceCounts).sort((a, b) => b[1] - a[1]).slice(0, 5)
+
+  // Combined Recent Activities
+  const recentActivities = [
+    ...doctors.map(d => ({
+      id: `doc-${d.id}`,
+      type: 'doctor',
+      title: language === 'vi' ? `Bác sĩ ${d.full_name} đăng ký` : `Dr. ${d.full_name} registered`,
+      subtitle: d.email || '',
+      date: new Date(d.created_at),
+      icon: faUserShield
+    })),
+    ...courses.map(c => {
+      const doc = doctors.find(d => d.id === c.doctor_id)
+      return {
+        id: `course-${c.id}`,
+        type: 'course',
+        title: language === 'vi' 
+          ? `Bác sĩ ${doc?.full_name || 'Hệ thống'} đã thêm khóa học` 
+          : `Dr. ${doc?.full_name || 'System'} added a course`,
+        subtitle: `${c.course_name} (+${c.credits} tín chỉ)`,
+        date: new Date(c.created_at),
+        icon: faBook
+      }
+    })
+  ]
+  .sort((a, b) => b.date.getTime() - a.date.getTime())
+  .slice(0, 5)
+
+  // Redirect if not admin
   if (!doctor || doctor.role !== 'admin') {
     return <Navigate to="/" replace />
   }
@@ -259,18 +475,29 @@ export const AdminConsole: React.FC = () => {
         <div>
           <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
             <FontAwesomeIcon icon={faUserShield} className="text-primary text-lg" />
-            {language === 'vi' ? 'Quản trị Hệ thống' : 'Admin Console'}
+            {language === 'vi' ? 'Hệ thống Quản trị Web & CME' : 'System Administration & CME'}
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             {language === 'vi' 
-              ? 'Quản lý tài khoản bác sĩ, phân quyền và duyệt các yêu cầu bảo mật.' 
-              : 'Manage doctor accounts, permissions, and approve security requests.'}
+              ? 'Phân tích hệ thống, quản lý tài khoản bác sĩ, chỉnh sửa hồ sơ, quản lý lịch sử học tập CME và bảo mật.' 
+              : 'Analyze system, manage doctor profiles, edit CME history, and manage platform security.'}
           </p>
         </div>
       </div>
 
       {/* Tabs */}
       <div className="flex border-b border-border select-none">
+        <button
+          onClick={() => setActiveTab('dashboard')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${
+            activeTab === 'dashboard'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <FontAwesomeIcon icon={faChartSimple} className="text-xs" />
+          {language === 'vi' ? 'Tổng quan Analytics' : 'Overview Analytics'}
+        </button>
         <button
           onClick={() => setActiveTab('doctors')}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${
@@ -280,7 +507,7 @@ export const AdminConsole: React.FC = () => {
           }`}
         >
           <FontAwesomeIcon icon={faUsers} className="text-xs" />
-          {language === 'vi' ? 'Danh sách Bác sĩ' : 'Doctors List'}
+          {language === 'vi' ? 'Quản lý Bác sĩ' : 'Manage Doctors'}
           <span className="ml-1 px-1.5 py-0.2 bg-secondary text-[10px] text-muted-foreground rounded-full">
             {doctors.length}
           </span>
@@ -294,7 +521,7 @@ export const AdminConsole: React.FC = () => {
           }`}
         >
           <FontAwesomeIcon icon={faKey} className="text-xs" />
-          {language === 'vi' ? 'Yêu cầu Đổi mật khẩu' : 'Password Reset Requests'}
+          {language === 'vi' ? 'Yêu cầu Đổi mật khẩu' : 'Reset Requests'}
           {requests.filter(r => r.status === 'pending').length > 0 && (
             <span className="ml-1 px-1.5 py-0.2 bg-rose-500 text-[10px] text-white rounded-full animate-pulse">
               {requests.filter(r => r.status === 'pending').length}
@@ -310,6 +537,146 @@ export const AdminConsole: React.FC = () => {
         </div>
       ) : (
         <>
+          {/* Dashboard Tab */}
+          {activeTab === 'dashboard' && (
+            <div className="space-y-6 animate-fadeIn">
+              {/* Metrics Grid */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <Card className="p-4 border-border bg-white dark:bg-card shadow-sm flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                      {language === 'vi' ? 'Tổng số Bác sĩ' : 'Total Doctors'}
+                    </span>
+                    <h3 className="text-2xl font-bold text-foreground mt-1">{totalDoctors}</h3>
+                  </div>
+                  <div className="h-10 w-10 bg-primary/10 rounded-full flex items-center justify-center text-primary">
+                    <FontAwesomeIcon icon={faUsers} />
+                  </div>
+                </Card>
+
+                <Card className="p-4 border-border bg-white dark:bg-card shadow-sm flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                      {language === 'vi' ? 'Tổng số Khóa học' : 'Total Courses'}
+                    </span>
+                    <h3 className="text-2xl font-bold text-foreground mt-1">{totalCourses}</h3>
+                  </div>
+                  <div className="h-10 w-10 bg-emerald-500/10 rounded-full flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                    <FontAwesomeIcon icon={faBook} />
+                  </div>
+                </Card>
+
+                <Card className="p-4 border-border bg-white dark:bg-card shadow-sm flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                      {language === 'vi' ? 'Tổng Tín chỉ tích lũy' : 'Total CME Credits'}
+                    </span>
+                    <h3 className="text-2xl font-bold text-foreground mt-1">{totalCredits}</h3>
+                  </div>
+                  <div className="h-10 w-10 bg-amber-500/10 rounded-full flex items-center justify-center text-amber-600 dark:text-amber-400">
+                    <FontAwesomeIcon icon={faArrowTrendUp} />
+                  </div>
+                </Card>
+
+                <Card className="p-4 border-border bg-white dark:bg-card shadow-sm flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                      {language === 'vi' ? 'Tín chỉ trung bình' : 'Avg Credits/Doctor'}
+                    </span>
+                    <h3 className="text-2xl font-bold text-foreground mt-1">{averageCredits}</h3>
+                  </div>
+                  <div className="h-10 w-10 bg-indigo-500/10 rounded-full flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                    <FontAwesomeIcon icon={faUserGraduate} />
+                  </div>
+                </Card>
+              </div>
+
+              {/* Lower Section Grid */}
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                {/* Stats Breakdown */}
+                <div className="space-y-6">
+                  {/* Specialties Distribution */}
+                  <Card className="p-5 border-border bg-white dark:bg-card shadow-sm">
+                    <h3 className="text-xs font-bold text-foreground flex items-center gap-2 mb-4">
+                      <FontAwesomeIcon icon={faStethoscope} className="text-primary" />
+                      <span>{language === 'vi' ? 'Phân bố Chuyên khoa hàng đầu' : 'Top Specialties Distribution'}</span>
+                    </h3>
+                    <div className="space-y-3.5">
+                      {sortedSpecialties.map(([name, count]) => {
+                        const percent = totalDoctors ? Math.round((count / totalDoctors) * 100) : 0
+                        return (
+                          <div key={name} className="space-y-1">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="font-semibold text-foreground">{name}</span>
+                              <span className="text-muted-foreground">{count} {language === 'vi' ? 'Bác sĩ' : 'Doctors'} ({percent}%)</span>
+                            </div>
+                            <div className="w-full bg-secondary/50 rounded-full h-1.5">
+                              <div className="bg-primary h-1.5 rounded-full" style={{ width: `${percent}%` }} />
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </Card>
+
+                  {/* Provinces Distribution */}
+                  <Card className="p-5 border-border bg-white dark:bg-card shadow-sm">
+                    <h3 className="text-xs font-bold text-foreground flex items-center gap-2 mb-4">
+                      <FontAwesomeIcon icon={faGlobe} className="text-primary" />
+                      <span>{language === 'vi' ? 'Phân bố Tỉnh thành hàng đầu' : 'Top Provinces Distribution'}</span>
+                    </h3>
+                    <div className="space-y-3.5">
+                      {sortedProvinces.map(([name, count]) => {
+                        const percent = totalDoctors ? Math.round((count / totalDoctors) * 100) : 0
+                        return (
+                          <div key={name} className="space-y-1">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="font-semibold text-foreground">{name}</span>
+                              <span className="text-muted-foreground">{count} {language === 'vi' ? 'Bác sĩ' : 'Doctors'} ({percent}%)</span>
+                            </div>
+                            <div className="w-full bg-secondary/50 rounded-full h-1.5">
+                              <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${percent}%` }} />
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </Card>
+                </div>
+
+                {/* Recent Activities */}
+                <Card className="p-5 border-border bg-white dark:bg-card shadow-sm">
+                  <h3 className="text-xs font-bold text-foreground flex items-center gap-2 mb-4">
+                    <FontAwesomeIcon icon={faClock} className="text-primary" />
+                    <span>{language === 'vi' ? 'Hoạt động Hệ thống Gần đây' : 'Recent System Activities'}</span>
+                  </h3>
+                  <div className="relative border-l border-border/80 pl-4 ml-2.5 space-y-5 py-1">
+                    {recentActivities.map((act) => (
+                      <div key={act.id} className="relative">
+                        {/* Bullet Icon */}
+                        <div className={`absolute -left-[27px] top-0.5 h-5 w-5 rounded-full flex items-center justify-center text-[9px] ${
+                          act.type === 'doctor' 
+                            ? 'bg-primary/10 text-primary' 
+                            : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                        }`}>
+                          <FontAwesomeIcon icon={act.icon} />
+                        </div>
+                        <div className="space-y-0.5 text-xs">
+                          <h4 className="font-bold text-foreground">{act.title}</h4>
+                          <p className="text-muted-foreground text-[10px]">{act.subtitle}</p>
+                          <span className="text-[9px] text-muted-foreground/60 block pt-0.5">
+                            {act.date.toLocaleString(language === 'vi' ? 'vi-VN' : 'en-US')}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              </div>
+            </div>
+          )}
+
+          {/* Doctors List Tab */}
           {activeTab === 'doctors' && (
             <div className="space-y-4">
               {/* Search Bar */}
@@ -350,19 +717,27 @@ export const AdminConsole: React.FC = () => {
                           const isLocked = bannedUserIds.has(doc.user_id)
                           return (
                             <tr key={doc.id} className="hover:bg-secondary/15 transition-colors">
-                              <td className="p-3.5 font-bold text-foreground">BS. {doc.full_name}</td>
-                              <td className="p-3.5 text-muted-foreground">{doc.email || '—'}</td>
-                              <td className="p-3.5 text-muted-foreground font-mono">{doc.cchn_number || '—'}</td>
+                              <td className="p-3.5 font-bold text-foreground">
+                                <div className="flex items-center space-x-2">
+                                  <span>{doc.full_name}</span>
+                                  {doc.role === 'admin' && (
+                                    <span className="px-1.5 py-0.2 bg-primary/10 text-primary text-[9px] font-bold rounded">
+                                      Admin
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="p-3.5 text-muted-foreground">{doc.email || 'N/A'}</td>
+                              <td className="p-3.5 font-semibold text-foreground">{doc.cchn_number || 'N/A'}</td>
                               <td className="p-3.5 text-muted-foreground">
-                                <div>{doc.specialty || '—'}</div>
-                                <div className="text-[10px] text-muted-foreground/75 mt-0.5">{doc.workplace || '—'}</div>
+                                {doc.specialty ? (
+                                  <span>{doc.specialty} • {doc.workplace || 'N/A'}</span>
+                                ) : (
+                                  <span>N/A</span>
+                                )}
                               </td>
                               <td className="p-3.5">
-                                <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
-                                  doc.role === 'admin' 
-                                    ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400' 
-                                    : 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
-                                }`}>
+                                <span className={`capitalize ${doc.role === 'admin' ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
                                   {doc.role === 'admin' ? 'Admin' : (language === 'vi' ? 'Bác sĩ' : 'Doctor')}
                                 </span>
                               </td>
@@ -372,21 +747,30 @@ export const AdminConsole: React.FC = () => {
                                     ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400' 
                                     : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
                                 }`}>
-                                  {isLocked ? (language === 'vi' ? 'Đã khóa' : 'Locked') : (language === 'vi' ? 'Hoạt động' : 'Active')}
+                                  {isLocked 
+                                    ? (language === 'vi' ? 'Bị khóa' : 'Locked') 
+                                    : (language === 'vi' ? 'Hoạt động' : 'Active')}
                                 </span>
                               </td>
                               <td className="p-3.5 text-right space-x-1">
                                 <button
+                                  onClick={() => setSelectedDoctorCme(doc)}
+                                  className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 rounded transition-colors"
+                                  title={language === 'vi' ? 'Xem & Quản lý CME' : 'View & Manage CME'}
+                                >
+                                  <FontAwesomeIcon icon={faFolderOpen} className="text-xs" />
+                                </button>
+                                <button
                                   onClick={() => setEditingDoctor(doc)}
-                                  className="p-1.5 text-muted-foreground hover:text-primary hover:bg-secondary rounded transition-colors"
-                                  title={language === 'vi' ? 'Sửa thông tin' : 'Edit profile'}
+                                  className="p-1.5 text-primary hover:text-primary/80 hover:bg-primary/10 rounded transition-colors"
+                                  title={language === 'vi' ? 'Sửa thông tin' : 'Edit Profile'}
                                 >
                                   <FontAwesomeIcon icon={faUserPen} className="text-xs" />
                                 </button>
                                 <button
                                   onClick={() => setResetPasswordUser(doc)}
-                                  className="p-1.5 text-muted-foreground hover:text-primary hover:bg-secondary rounded transition-colors"
-                                  title={language === 'vi' ? 'Đặt lại mật khẩu' : 'Reset password'}
+                                  className="p-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-500/10 rounded transition-colors"
+                                  title={language === 'vi' ? 'Đổi mật khẩu' : 'Reset Password'}
                                 >
                                   <FontAwesomeIcon icon={faKey} className="text-xs" />
                                 </button>
@@ -420,6 +804,7 @@ export const AdminConsole: React.FC = () => {
             </div>
           )}
 
+          {/* Password Resets Tab */}
           {activeTab === 'requests' && (
             <div className="space-y-4 animate-fadeIn">
               <Card className="border-border bg-white dark:bg-card shadow-sm overflow-hidden">
@@ -545,36 +930,33 @@ export const AdminConsole: React.FC = () => {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="edit_cchn" className="text-xs">{t.cchnNumber} *</Label>
+                    <Label htmlFor="edit_cchn" className="text-xs">{t.cchnNumber}</Label>
                     <Input
                       id="edit_cchn"
                       value={editingDoctor.cchn_number || ''}
                       onChange={(e) => setEditingDoctor({ ...editingDoctor, cchn_number: e.target.value })}
                       className="text-xs border-border"
-                      required
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label htmlFor="edit_specialty" className="text-xs">{t.specialty} *</Label>
+                    <Label htmlFor="edit_specialty" className="text-xs">{t.specialty}</Label>
                     <Input
                       id="edit_specialty"
                       value={editingDoctor.specialty || ''}
                       onChange={(e) => setEditingDoctor({ ...editingDoctor, specialty: e.target.value })}
                       className="text-xs border-border"
-                      required
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="edit_province" className="text-xs">{t.province} *</Label>
+                    <Label htmlFor="edit_province" className="text-xs">{t.province}</Label>
                     <Input
                       id="edit_province"
                       value={editingDoctor.province || ''}
                       onChange={(e) => setEditingDoctor({ ...editingDoctor, province: e.target.value })}
                       className="text-xs border-border"
-                      required
                     />
                   </div>
                 </div>
@@ -598,6 +980,7 @@ export const AdminConsole: React.FC = () => {
                       value={editingDoctor.cme_target_credits}
                       onChange={(e) => setEditingDoctor({ ...editingDoctor, cme_target_credits: Number(e.target.value) })}
                       className="text-xs border-border"
+                      required
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -671,6 +1054,304 @@ export const AdminConsole: React.FC = () => {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Doctor CME Folder Dialog */}
+      <Dialog open={selectedDoctorCme !== null} onOpenChange={(open) => {
+        if (!open) {
+          setSelectedDoctorCme(null)
+          setIsCmeFormOpen(false)
+          setEditingCourse(null)
+        }
+      }}>
+        <DialogContent className="max-w-2xl bg-white dark:bg-card border-border text-foreground overflow-y-auto max-h-[85vh]">
+          <DialogHeader className="border-b border-border pb-3 flex flex-row items-center justify-between">
+            <div>
+              <DialogTitle className="text-sm font-bold flex items-center gap-2">
+                <FontAwesomeIcon icon={faFolderOpen} className="text-emerald-500" />
+                <span>
+                  {language === 'vi' 
+                    ? `Hồ sơ CME: BS. ${selectedDoctorCme?.full_name}` 
+                    : `CME Folder: Dr. ${selectedDoctorCme?.full_name}`}
+                </span>
+              </DialogTitle>
+              <DialogDescription className="text-[10px] text-muted-foreground mt-0.5">
+                {selectedDoctorCme?.email} • CCHN: {selectedDoctorCme?.cchn_number || 'N/A'}
+              </DialogDescription>
+            </div>
+          </DialogHeader>
+
+          {/* Form to Add/Edit Course */}
+          {isCmeFormOpen ? (
+            <form onSubmit={handleCmeFormSubmit} className="space-y-4 py-4 animate-fadeIn">
+              <h3 className="text-xs font-bold text-foreground">
+                {editingCourse 
+                  ? (language === 'vi' ? 'Chỉnh sửa khóa học CME' : 'Edit CME Course') 
+                  : (language === 'vi' ? 'Thêm khóa học CME mới cho bác sĩ' : 'Record New CME Course for Doctor')}
+              </h3>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="course_name" className="text-xs">{t.courseNameLabel} *</Label>
+                <Input
+                  id="course_name"
+                  value={courseName}
+                  onChange={(e) => setCourseName(e.target.value)}
+                  className="text-xs border-border"
+                  placeholder={language === 'vi' ? 'Tên khóa đào tạo liên tục...' : 'Course title...'}
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="provider_name" className="text-xs">{t.providerNameLabel} *</Label>
+                  <Input
+                    id="provider_name"
+                    value={providerName}
+                    onChange={(e) => setProviderName(e.target.value)}
+                    className="text-xs border-border"
+                    placeholder={language === 'vi' ? 'Đơn vị cấp chứng chỉ...' : 'Issuing provider...'}
+                    required
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="provider_type" className="text-xs">{language === 'vi' ? 'Loại hình đơn vị' : 'Provider Type'} *</Label>
+                  <Select
+                    value={providerType}
+                    onValueChange={(val: any) => setProviderType(val)}
+                  >
+                    <SelectTrigger id="provider_type" className="text-xs border-border">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="hospital">{language === 'vi' ? 'Bệnh viện' : 'Hospital'}</SelectItem>
+                      <SelectItem value="university">{language === 'vi' ? 'Đại học Y' : 'University'}</SelectItem>
+                      <SelectItem value="association">{language === 'vi' ? 'Hội nghề nghiệp' : 'Association'}</SelectItem>
+                      <SelectItem value="online">{language === 'vi' ? 'Trực tuyến' : 'Online'}</SelectItem>
+                      <SelectItem value="other">{language === 'vi' ? 'Khác' : 'Other'}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="credits" className="text-xs">{t.creditsLabel} *</Label>
+                  <Input
+                    id="credits"
+                    type="number"
+                    value={credits}
+                    onChange={(e) => setCredits(Number(e.target.value))}
+                    className="text-xs border-border"
+                    required
+                    min={1}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="course_type" className="text-xs">{language === 'vi' ? 'Hình thức đào tạo' : 'Course Type'} *</Label>
+                  <Select
+                    value={courseType}
+                    onValueChange={(val: any) => setCourseType(val)}
+                  >
+                    <SelectTrigger id="course_type" className="text-xs border-border">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="theory">{language === 'vi' ? 'Lý thuyết' : 'Theory'}</SelectItem>
+                      <SelectItem value="clinical">{language === 'vi' ? 'Lâm sàng' : 'Clinical'}</SelectItem>
+                      <SelectItem value="online">{language === 'vi' ? 'Trực tuyến' : 'Online'}</SelectItem>
+                      <SelectItem value="conference">{language === 'vi' ? 'Hội nghị/Hội thảo' : 'Conference'}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="verification_status" className="text-xs">{language === 'vi' ? 'Trạng thái duyệt' : 'Verification Status'} *</Label>
+                  <Select
+                    value={verificationStatus}
+                    onValueChange={(val: any) => setVerificationStatus(val)}
+                  >
+                    <SelectTrigger id="verification_status" className="text-xs border-border">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="self_entered">{language === 'vi' ? 'Tự khai báo' : 'Self Entered'}</SelectItem>
+                      <SelectItem value="provider_verified">{language === 'vi' ? 'Đã phê duyệt' : 'Approved'}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="start_date" className="text-xs">{t.startDateLabel} *</Label>
+                  <Input
+                    id="start_date"
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="text-xs border-border"
+                    required
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="end_date" className="text-xs">{t.endDateLabel} *</Label>
+                  <Input
+                    id="end_date"
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="text-xs border-border"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="notes" className="text-xs">{t.notesLabel}</Label>
+                <Input
+                  id="notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className="text-xs border-border"
+                  placeholder={language === 'vi' ? 'Ghi chú thêm...' : 'Additional notes...'}
+                />
+              </div>
+
+              {/* Certificate Upload Component */}
+              <CertificateUpload
+                value={certificateUrl}
+                onChange={(url, name) => {
+                  setCertificateUrl(url)
+                  setCertificateName(name)
+                }}
+                fileName={certificateName}
+              />
+
+              <div className="flex justify-end gap-2 border-t border-border pt-4">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm" 
+                  className="text-xs" 
+                  onClick={() => {
+                    setIsCmeFormOpen(false)
+                    setEditingCourse(null)
+                  }}
+                  disabled={isSubmitting}
+                >
+                  {t.cancelBtn}
+                </Button>
+                <Button 
+                  type="submit" 
+                  size="sm" 
+                  disabled={isSubmitting} 
+                  className="bg-primary text-white hover:bg-primary/95 text-xs font-semibold px-4 shadow-sm"
+                >
+                  {isSubmitting ? t.savingBtn : t.saveBtn}
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <div className="space-y-4 py-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-foreground">
+                  {language === 'vi' ? `Danh sách Chứng chỉ (${doctorCourses.length})` : `Certificate List (${doctorCourses.length})`}
+                </h4>
+                <Button 
+                  onClick={() => openCmeForm(null)}
+                  size="sm"
+                  className="bg-primary text-white hover:bg-primary/95 text-[10px] font-semibold h-7 px-3 flex items-center gap-1.5 shadow-sm"
+                >
+                  <FontAwesomeIcon icon={faPlus} className="text-[9px]" />
+                  <span>{language === 'vi' ? 'Nạp CME hộ' : 'Record CME'}</span>
+                </Button>
+              </div>
+
+              <div className="divide-y divide-border/60 max-h-[50vh] overflow-y-auto border border-border rounded-lg bg-secondary/5 pr-1.5 pl-2.5">
+                {doctorCourses.length === 0 ? (
+                  <div className="text-center py-8 text-xs text-muted-foreground">
+                    {language === 'vi' ? 'Bác sĩ chưa ghi nhận khóa học nào.' : 'No courses recorded by this doctor.'}
+                  </div>
+                ) : (
+                  doctorCourses.map((c) => {
+                    const isVerified = c.verification_status !== 'self_entered'
+                    return (
+                      <div key={c.id} className="py-3 flex items-center justify-between first:pt-3 last:pb-3">
+                        <div className="space-y-1">
+                          <h5 className="text-xs font-bold text-foreground">{c.course_name}</h5>
+                          <p className="text-[10px] text-muted-foreground">
+                            {c.provider_name} • {c.credits} {language === 'vi' ? 'tín chỉ' : 'credits'} • {c.end_date}
+                          </p>
+                          <div className="flex items-center gap-2 pt-0.5">
+                            <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-semibold ${
+                              isVerified 
+                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' 
+                                : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                            }`}>
+                              {isVerified 
+                                ? (language === 'vi' ? 'Đã phê duyệt' : 'Verified') 
+                                : (language === 'vi' ? 'Tự khai báo' : 'Self Entered')}
+                            </span>
+                            {c.certificate_url && (
+                              <a 
+                                href={c.certificate_url} 
+                                target="_blank" 
+                                rel="noreferrer" 
+                                className="text-[9px] text-primary hover:underline font-semibold flex items-center gap-1"
+                              >
+                                <FontAwesomeIcon icon={faEye} />
+                                <span>{language === 'vi' ? 'Xem minh chứng' : 'View Proof'}</span>
+                              </a>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => handleCmeToggleVerify(c)}
+                            className={`p-1.5 rounded transition-colors ${
+                              isVerified 
+                                ? 'text-amber-600 hover:bg-amber-500/10 hover:text-amber-700' 
+                                : 'text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-700'
+                            }`}
+                            title={isVerified ? (language === 'vi' ? 'Hủy duyệt' : 'Unverify') : (language === 'vi' ? 'Phê duyệt' : 'Verify')}
+                          >
+                            <FontAwesomeIcon icon={isVerified ? faTimes : faCheck} className="text-xs" />
+                          </button>
+                          <button
+                            onClick={() => openCmeForm(c)}
+                            className="p-1.5 text-primary hover:bg-primary/10 rounded transition-colors"
+                            title={language === 'vi' ? 'Sửa' : 'Edit'}
+                          >
+                            <FontAwesomeIcon icon={faUserPen} className="text-xs" />
+                          </button>
+                          <button
+                            onClick={() => handleCmeDelete(c.id)}
+                            className="p-1.5 text-rose-600 hover:bg-rose-500/10 rounded transition-colors"
+                            title={language === 'vi' ? 'Xóa' : 'Delete'}
+                          >
+                            <FontAwesomeIcon icon={faTrash} className="text-xs" />
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <Button 
+                  onClick={() => setSelectedDoctorCme(null)} 
+                  variant="outline" 
+                  size="sm"
+                  className="text-xs font-semibold h-8 px-4"
+                >
+                  {language === 'vi' ? 'Đóng' : 'Close'}
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
