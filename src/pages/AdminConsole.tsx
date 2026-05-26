@@ -82,7 +82,7 @@ export const AdminConsole: React.FC = () => {
         .rpc('admin_get_banned_users')
 
       if (!banError && bannedData) {
-        setBannedUserIds(new Set(bannedData))
+        setBannedUserIds(new Set(bannedData.map((b: any) => b.banned_user_id)));
       }
     } catch (e: unknown) {
       console.error('Error loading admin console data:', e)
