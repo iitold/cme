@@ -54,25 +54,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
         </div>
       </div>
 
-      {/* Doctor Card Profile */}
-      {doctor && (
-        <div className="mb-6 mx-2 rounded-lg bg-secondary/30 p-3.5 border border-border/50">
-          <div className="flex items-center space-x-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-xs border border-primary/20">
-              {doctor.full_name?.split(' ').pop()?.charAt(0) || 'D'}
-            </div>
-            <div className="overflow-hidden">
-              <h2 className="truncate text-xs font-semibold text-foreground">
-                BS. {doctor.full_name}
-              </h2>
-              <p className="truncate text-[10px] text-muted-foreground">
-                {doctor.specialty || t.specialty}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Nav Menu */}
       <nav className="flex-1 space-y-1 px-1">
         {menuItems.map((item) => {
@@ -104,15 +85,34 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
         })}
       </nav>
 
-      {/* Footer Info / Logout */}
-      <div className="mt-auto border-t border-border pt-4 px-2">
-        <button
-          onClick={() => signOut()}
-          className="flex w-full items-center space-x-3 rounded-md px-3 py-2.5 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors"
-        >
-          <FontAwesomeIcon icon={faRightFromBracket} style={{ fontSize: '13px' }} />
-          <span>{t.logout}</span>
-        </button>
+      {/* Account Summary */}
+      <div className="mt-auto border-t border-border px-2 pt-4">
+        {doctor && (
+          <div className="rounded-md border border-border/50 bg-secondary/20 p-3">
+            <div className="flex items-center space-x-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded bg-primary/10 text-primary font-semibold text-xs border border-primary/15">
+                {doctor.full_name?.split(' ').pop()?.charAt(0) || 'D'}
+              </div>
+              <div className="min-w-0 flex-1 overflow-hidden">
+                <h2 className="truncate text-[11px] font-semibold text-foreground">
+                  {doctor.role === 'admin' ? doctor.full_name : `BS. ${doctor.full_name}`}
+                </h2>
+                <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
+                  {doctor.role === 'admin'
+                    ? (language === 'vi' ? 'Quản trị hệ thống' : 'System administrator')
+                    : (doctor.specialty || t.specialty)}
+                </p>
+              </div>
+              <button
+                onClick={() => signOut()}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                title={t.logout}
+              >
+                <FontAwesomeIcon icon={faRightFromBracket} className="text-xs" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
