@@ -133,7 +133,7 @@ export const Certificates: React.FC = () => {
                     variant="outline" 
                     size="sm" 
                     onClick={() => handleViewCertificate(course.certificate_url)}
-                    className="flex-1 text-xs flex items-center justify-center gap-1.5 h-8 border-border"
+                    className="flex h-11 flex-1 items-center justify-center gap-1.5 border-border text-xs sm:h-8"
                   >
                     <FontAwesomeIcon icon={faEye} className="text-[11px]" />
                     <span>{t.viewDetails}</span>
@@ -143,7 +143,7 @@ export const Certificates: React.FC = () => {
                     size="sm" 
                     variant="ghost" 
                     onClick={() => handleViewCertificate(course.certificate_url)}
-                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                    className="h-11 w-11 p-0 text-muted-foreground hover:text-foreground sm:h-8 sm:w-8"
                   >
                     <FontAwesomeIcon icon={faDownload} className="text-[13px]" />
                   </Button>

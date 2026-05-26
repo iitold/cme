@@ -1,5 +1,5 @@
 import React from 'react'
-import { useForm, Controller } from 'react-hook-form'
+import { useForm, Controller, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { Course } from '../../types'
 import { courseSchema, type CourseSchemaInput } from '../../schemas/course.schema'
@@ -29,7 +29,7 @@ export const CourseForm: React.FC<CourseFormProps> = ({
   const { language } = useLanguageStore()
   const t = translations[language]
 
-  const { register, handleSubmit, control, setValue, watch, formState: { errors } } = useForm<CourseSchemaInput>({
+  const { register, handleSubmit, control, setValue, formState: { errors } } = useForm<CourseSchemaInput>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     resolver: zodResolver(courseSchema) as any,
     defaultValues: {
@@ -46,8 +46,8 @@ export const CourseForm: React.FC<CourseFormProps> = ({
     }
   })
 
-  const certUrl = watch('certificate_url')
-  const certName = watch('certificate_name')
+  const certUrl = useWatch({ control, name: 'certificate_url' })
+  const certName = useWatch({ control, name: 'certificate_name' })
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const onFormSubmit = handleSubmit(onSubmit as any)

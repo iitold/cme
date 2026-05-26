@@ -827,7 +827,106 @@ export const AdminConsole: React.FC = () => {
 
               {/* Table */}
               <Card className="border-border bg-white dark:bg-card shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
+                <div className="divide-y divide-border md:hidden">
+                  {filteredDoctors.length === 0 ? (
+                    <div className="p-6 text-center text-xs text-muted-foreground">
+                      {language === 'vi' ? 'Không tìm thấy bác sĩ nào.' : 'No doctors found.'}
+                    </div>
+                  ) : (
+                    filteredDoctors.map((doc) => {
+                      const isLocked = bannedUserIds.has(doc.user_id)
+                      return (
+                        <div key={doc.id} className="space-y-3 p-3.5">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="flex min-w-0 items-center gap-2">
+                                <h3 className="truncate text-xs font-bold text-foreground">{doc.full_name}</h3>
+                                {doc.role === 'admin' && (
+                                  <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                                    Admin
+                                  </span>
+                                )}
+                              </div>
+                              <p className="mt-1 truncate text-[11px] text-muted-foreground">{doc.email || 'N/A'}</p>
+                            </div>
+                            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                              isLocked
+                                ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                                : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                            }`}>
+                              {isLocked
+                                ? (language === 'vi' ? 'Bị khóa' : 'Locked')
+                                : (language === 'vi' ? 'Hoạt động' : 'Active')}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 text-[11px]">
+                            <div>
+                              <span className="text-muted-foreground">{language === 'vi' ? 'CCHN' : 'License'}</span>
+                              <p className="mt-0.5 truncate font-semibold text-foreground">{doc.cchn_number || 'N/A'}</p>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">{language === 'vi' ? 'Vai trò' : 'Role'}</span>
+                              <p className="mt-0.5 font-semibold text-foreground">
+                                {doc.role === 'admin' ? 'Admin' : (language === 'vi' ? 'Bác sĩ' : 'Doctor')}
+                              </p>
+                            </div>
+                            <div className="col-span-2">
+                              <span className="text-muted-foreground">{language === 'vi' ? 'Chuyên khoa / Nơi làm việc' : 'Specialty / Workplace'}</span>
+                              <p className="mt-0.5 line-clamp-2 font-semibold text-foreground">
+                                {doc.specialty ? `${doc.specialty} • ${doc.workplace || 'N/A'}` : 'N/A'}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-5 gap-2 pt-1">
+                            <button
+                              onClick={() => setSelectedDoctorCme(doc)}
+                              className="flex h-11 items-center justify-center rounded bg-emerald-500/10 text-emerald-600 transition-colors hover:bg-emerald-500/20"
+                              title={language === 'vi' ? 'Xem & Quản lý CME' : 'View & Manage CME'}
+                            >
+                              <FontAwesomeIcon icon={faFolderOpen} className="text-sm" />
+                            </button>
+                            <button
+                              onClick={() => setEditingDoctor(doc)}
+                              className="flex h-11 items-center justify-center rounded bg-primary/10 text-primary transition-colors hover:bg-primary/20"
+                              title={language === 'vi' ? 'Sửa thông tin' : 'Edit Profile'}
+                            >
+                              <FontAwesomeIcon icon={faUserPen} className="text-sm" />
+                            </button>
+                            <button
+                              onClick={() => setResetPasswordUser(doc)}
+                              className="flex h-11 items-center justify-center rounded bg-amber-500/10 text-amber-600 transition-colors hover:bg-amber-500/20"
+                              title={language === 'vi' ? 'Đổi mật khẩu' : 'Reset Password'}
+                            >
+                              <FontAwesomeIcon icon={faKey} className="text-sm" />
+                            </button>
+                            <button
+                              onClick={() => handleToggleLock(doc)}
+                              className={`flex h-11 items-center justify-center rounded transition-colors ${
+                                isLocked
+                                  ? 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20'
+                                  : 'bg-rose-500/10 text-rose-600 hover:bg-rose-500/20'
+                              }`}
+                              title={isLocked ? (language === 'vi' ? 'Mở khóa' : 'Unlock') : (language === 'vi' ? 'Khóa tài khoản' : 'Lock Account')}
+                            >
+                              <FontAwesomeIcon icon={isLocked ? faUnlock : faLock} className="text-sm" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteUser(doc)}
+                              className="flex h-11 items-center justify-center rounded bg-rose-500/10 text-rose-600 transition-colors hover:bg-rose-500/20"
+                              title={language === 'vi' ? 'Xóa tài khoản' : 'Delete Account'}
+                            >
+                              <FontAwesomeIcon icon={faTrash} className="text-sm" />
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+
+                <div className="hidden overflow-x-auto md:block">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="border-b border-border bg-secondary/20 text-muted-foreground font-semibold">
@@ -890,28 +989,28 @@ export const AdminConsole: React.FC = () => {
                               <td className="p-3.5 text-right space-x-1">
                                 <button
                                   onClick={() => setSelectedDoctorCme(doc)}
-                                  className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 rounded transition-colors"
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded text-emerald-600 transition-colors hover:bg-emerald-500/10 hover:text-emerald-700"
                                   title={language === 'vi' ? 'Xem & Quản lý CME' : 'View & Manage CME'}
                                 >
                                   <FontAwesomeIcon icon={faFolderOpen} className="text-xs" />
                                 </button>
                                 <button
                                   onClick={() => setEditingDoctor(doc)}
-                                  className="p-1.5 text-primary hover:text-primary/80 hover:bg-primary/10 rounded transition-colors"
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded text-primary transition-colors hover:bg-primary/10 hover:text-primary/80"
                                   title={language === 'vi' ? 'Sửa thông tin' : 'Edit Profile'}
                                 >
                                   <FontAwesomeIcon icon={faUserPen} className="text-xs" />
                                 </button>
                                 <button
                                   onClick={() => setResetPasswordUser(doc)}
-                                  className="p-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-500/10 rounded transition-colors"
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded text-amber-600 transition-colors hover:bg-amber-500/10 hover:text-amber-700"
                                   title={language === 'vi' ? 'Đổi mật khẩu' : 'Reset Password'}
                                 >
                                   <FontAwesomeIcon icon={faKey} className="text-xs" />
                                 </button>
                                 <button
                                   onClick={() => handleToggleLock(doc)}
-                                  className={`p-1.5 rounded transition-colors ${
+                                  className={`inline-flex h-8 w-8 items-center justify-center rounded transition-colors ${
                                     isLocked 
                                       ? 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10' 
                                       : 'text-rose-600 hover:text-rose-700 hover:bg-rose-500/10'
@@ -922,7 +1021,7 @@ export const AdminConsole: React.FC = () => {
                                 </button>
                                 <button
                                   onClick={() => handleDeleteUser(doc)}
-                                  className="p-1.5 text-rose-600 hover:text-rose-700 hover:bg-rose-500/10 rounded transition-colors"
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded text-rose-600 transition-colors hover:bg-rose-500/10 hover:text-rose-700"
                                   title={language === 'vi' ? 'Xóa tài khoản' : 'Delete Account'}
                                 >
                                   <FontAwesomeIcon icon={faTrash} className="text-xs" />
@@ -936,19 +1035,19 @@ export const AdminConsole: React.FC = () => {
                   </table>
                 </div>
                 {totalDoctorsCount > 50 && (
-                  <div className="flex items-center justify-between border-t border-border p-3.5 bg-secondary/5 text-xs text-muted-foreground select-none">
+                  <div className="flex flex-col gap-3 border-t border-border bg-secondary/5 p-3.5 text-xs text-muted-foreground select-none sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       {language === 'vi' 
                         ? `Hiển thị ${doctorsPage * 50 + 1}-${Math.min((doctorsPage + 1) * 50, totalDoctorsCount)} trong tổng số ${totalDoctorsCount} bác sĩ`
                         : `Showing ${doctorsPage * 50 + 1}-${Math.min((doctorsPage + 1) * 50, totalDoctorsCount)} of ${totalDoctorsCount} doctors`}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
                       <Button
                         variant="outline"
                         size="sm"
                         disabled={doctorsPage === 0}
                         onClick={() => setDoctorsPage(prev => Math.max(0, prev - 1))}
-                        className="h-8 text-xs font-semibold px-3 bg-transparent border-border"
+                        className="h-10 bg-transparent px-3 text-xs font-semibold border-border sm:h-8"
                       >
                         {language === 'vi' ? 'Trước' : 'Previous'}
                       </Button>
@@ -957,7 +1056,7 @@ export const AdminConsole: React.FC = () => {
                         size="sm"
                         disabled={(doctorsPage + 1) * 50 >= totalDoctorsCount}
                         onClick={() => setDoctorsPage(prev => prev + 1)}
-                        className="h-8 text-xs font-semibold px-3 bg-transparent border-border"
+                        className="h-10 bg-transparent px-3 text-xs font-semibold border-border sm:h-8"
                       >
                         {language === 'vi' ? 'Sau' : 'Next'}
                       </Button>
@@ -1083,7 +1182,7 @@ export const AdminConsole: React.FC = () => {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label htmlFor="edit_phone" className="text-xs">{t.phoneLabel}</Label>
                     <Input
@@ -1104,7 +1203,7 @@ export const AdminConsole: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label htmlFor="edit_specialty" className="text-xs">{t.specialty}</Label>
                     <Input
@@ -1135,7 +1234,7 @@ export const AdminConsole: React.FC = () => {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label htmlFor="edit_target" className="text-xs">{t.targetCreditsLabel}</Label>
                     <Input

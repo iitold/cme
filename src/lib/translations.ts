@@ -86,6 +86,8 @@ export const translations = {
     warningWarning: 'Cảnh báo: Chỉ còn {months} tháng để tích lũy thêm {credits} tín chỉ.',
     infoWarning: 'Nhắc nhở: Bác sĩ cần tích lũy thêm {credits} tín chỉ trong {months} tháng.',
     proofBadge: 'Minh chứng',
+    creditUnit: 'tín chỉ',
+    creditsExpiredInline: 'tín chỉ (hết hạn)',
     expiredBadgeText: 'Hết hạn quá 5 năm',
     expiredShortText: 'hết hạn',
     
@@ -179,6 +181,7 @@ export const translations = {
     fileTypeError: 'Chỉ chấp nhận tệp hình ảnh (JPG, PNG, WEBP) hoặc PDF',
     uploadError: 'Đã xảy ra lỗi khi tải tệp lên',
     viewUploaded: 'Xem tài liệu đã tải lên',
+    imageLoadFailed: 'Không tải được ảnh',
 
     // Errors
     fieldRequired: 'Trường này là bắt buộc',
@@ -276,6 +279,8 @@ export const translations = {
     warningWarning: 'Warning: Only {months} months left to accumulate {credits} credits.',
     infoWarning: 'Reminder: Doctor needs to accumulate {credits} more credits in {months} months.',
     proofBadge: 'Evidence',
+    creditUnit: 'credits',
+    creditsExpiredInline: 'credits (expired)',
     expiredBadgeText: 'Expired (>5 years)',
     expiredShortText: 'expired',
     
@@ -369,6 +374,7 @@ export const translations = {
     fileTypeError: 'Only image files (JPG, PNG, WEBP) or PDF are accepted',
     uploadError: 'An error occurred during file upload',
     viewUploaded: 'View uploaded document',
+    imageLoadFailed: 'Failed to load image',
 
     // Errors
     fieldRequired: 'This field is required',

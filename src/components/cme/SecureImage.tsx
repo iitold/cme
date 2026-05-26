@@ -2,12 +2,16 @@ import React, { useEffect, useState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faSpinner, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons'
 import { getCertificatePath, getSignedUrl } from '../../lib/storageHelpers'
+import { useLanguageStore } from '../../stores/language.store'
+import { translations } from '../../lib/translations'
 
 interface SecureImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   srcPath: string
 }
 
 export const SecureImage: React.FC<SecureImageProps> = ({ srcPath, ...props }) => {
+  const { language } = useLanguageStore()
+  const t = translations[language]
   const [signedUrl, setSignedUrl] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
@@ -59,7 +63,7 @@ export const SecureImage: React.FC<SecureImageProps> = ({ srcPath, ...props }) =
     return (
       <div className="flex h-full w-full flex-col items-center justify-center bg-secondary/15 text-muted-foreground/70 p-3 text-center rounded">
         <FontAwesomeIcon icon={faTriangleExclamation} className="text-amber-500/80 mb-1" />
-        <span className="text-[9px] font-semibold">Failed to load image</span>
+        <span className="text-[10px] font-semibold">{t.imageLoadFailed}</span>
       </div>
     )
   }

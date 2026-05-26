@@ -1,5 +1,5 @@
 import React from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { 
@@ -29,7 +29,7 @@ export const Profile: React.FC = () => {
   const { language } = useLanguageStore()
   const t = translations[language]
 
-  const { register, handleSubmit, formState: { errors }, watch } = useForm<ProfileSchemaInput>({
+  const { register, handleSubmit, control, formState: { errors } } = useForm<ProfileSchemaInput>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     resolver: zodResolver(profileSchema) as any,
     values: profile ? {
@@ -47,7 +47,7 @@ export const Profile: React.FC = () => {
     } : undefined
   })
 
-  const cycleStart = watch('cchn_cycle_start')
+  const cycleStart = useWatch({ control, name: 'cchn_cycle_start' })
   const getCycleEndDisplay = () => {
     if (!cycleStart) return language === 'vi' ? 'Tự động tính' : 'Auto computed'
     const end = addYears(cycleStart, 5)

@@ -88,10 +88,10 @@ export const Courses: React.FC = () => {
     try {
       if (editingCourse) {
         await updateCourse({ id: editingCourse.id, ...data })
-        toast.success('Cập nhật khóa học thành công!')
+        toast.success(t.updateCourseSuccess)
       } else {
         await addCourse(data)
-        toast.success('Thêm khóa học mới thành công!')
+        toast.success(t.addCourseSuccess)
       }
       setIsFormOpen(false)
       setEditingCourse(null)
@@ -109,7 +109,7 @@ export const Courses: React.FC = () => {
     setIsSubmitting(true)
     try {
       await deleteCourse(deletingCourseId)
-      toast.success('Đã xóa khóa học thành công!')
+      toast.success(t.deleteCourseSuccess)
       setDeletingCourseId(null)
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Lỗi khi xóa khóa học!'
@@ -304,7 +304,7 @@ export const Courses: React.FC = () => {
                       <button 
                         onClick={() => handleViewCertificate(course.certificate_url)}
                         title={course.certificate_name || (language === 'vi' ? "Xem chứng chỉ" : "View certificate")}
-                        className="flex h-8 w-8 items-center justify-center rounded bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 transition-colors"
+                        className="flex h-11 w-11 items-center justify-center rounded bg-emerald-500/10 text-emerald-600 transition-colors hover:bg-emerald-500/20 sm:h-8 sm:w-8"
                       >
                         <FontAwesomeIcon icon={faFileLines} className="text-[13px]" />
                       </button>
@@ -312,14 +312,14 @@ export const Courses: React.FC = () => {
                     
                     <button
                       onClick={() => handleEditClick(course)}
-                      className="flex h-8 w-8 items-center justify-center rounded border border-border bg-white dark:bg-card text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                      className="flex h-11 w-11 items-center justify-center rounded border border-border bg-white text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground dark:bg-card sm:h-8 sm:w-8"
                     >
                       <FontAwesomeIcon icon={faPenToSquare} className="text-[13px]" />
                     </button>
                     
                     <button
                       onClick={() => setDeletingCourseId(course.id)}
-                      className="flex h-8 w-8 items-center justify-center rounded bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
+                      className="flex h-11 w-11 items-center justify-center rounded bg-destructive/10 text-destructive transition-colors hover:bg-destructive/20 sm:h-8 sm:w-8"
                     >
                       <FontAwesomeIcon icon={faTrash} className="text-[13px]" />
                     </button>

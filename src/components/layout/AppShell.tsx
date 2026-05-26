@@ -1,32 +1,44 @@
 import React from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { 
+import {
   faChartLine, 
   faBook, 
   faAward, 
   faUser, 
   faSun, 
   faMoon,
-  faBriefcaseMedical
+  faBriefcaseMedical,
+  faUserShield
 } from '@fortawesome/free-solid-svg-icons'
+import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
 import { Sidebar } from './Sidebar'
 import { useThemeStore } from '../../stores/theme.store'
 import { useLanguageStore } from '../../stores/language.store'
+import { useAuthStore } from '../../stores/auth.store'
 import { translations } from '../../lib/translations'
 
 export const AppShell: React.FC = () => {
   const location = useLocation()
+  const { doctor } = useAuthStore()
   const { theme, toggleTheme } = useThemeStore()
   const { language, setLanguage } = useLanguageStore()
   const t = translations[language]
 
-  const navItems = [
+  const navItems: { name: string; path: string; icon: IconDefinition }[] = [
     { name: t.navOverview, path: '/', icon: faChartLine },
     { name: t.navCourses, path: '/courses', icon: faBook },
     { name: t.navCertificates, path: '/certificates', icon: faAward },
     { name: t.navProfile, path: '/profile', icon: faUser },
   ]
+
+  if (doctor?.role === 'admin') {
+    navItems.push({
+      name: language === 'vi' ? 'Quản trị' : 'Admin',
+      path: '/admin',
+      icon: faUserShield,
+    })
+  }
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
@@ -98,7 +110,7 @@ export const AppShell: React.FC = () => {
                 key={item.path}
                 to={item.path}
                 className={({ isActive }) =>
-                  `flex flex-col items-center justify-center w-20 h-12 rounded-lg text-center transition-all duration-150 ${
+                  `flex h-12 min-w-0 flex-1 flex-col items-center justify-center rounded-lg text-center transition-all duration-150 ${
                     isActive
                       ? 'text-primary font-medium'
                       : 'text-muted-foreground hover:text-foreground'
@@ -109,7 +121,7 @@ export const AppShell: React.FC = () => {
                 {({ isActive }) => (
                   <>
                     <FontAwesomeIcon icon={Icon} className={`text-sm ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
-                    <span className="text-[10px] mt-1 tracking-tight">{item.name}</span>
+                    <span className="mt-1 text-[10px] tracking-tight leading-none">{item.name}</span>
                   </>
                 )}
               </NavLink>

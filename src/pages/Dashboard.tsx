@@ -193,16 +193,16 @@ export const Dashboard: React.FC = () => {
                     <div className="flex items-center gap-3">
                       {isValid ? (
                         <span className="inline-flex items-center rounded bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
-                          +{course.credits} tín chỉ
+                          +{course.credits} {t.creditUnit}
                         </span>
                       ) : (
                         <span className="inline-flex items-center rounded bg-destructive/10 px-2 py-0.5 text-[10px] font-bold text-destructive">
-                          +{course.credits} tín chỉ (hết hạn)
+                          +{course.credits} {t.creditsExpiredInline}
                         </span>
                       )}
                       {course.certificate_url && (
                         <span className="inline-flex items-center rounded bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                          Minh chứng
+                          {t.proofBadge}
                         </span>
                       )}
                     </div>

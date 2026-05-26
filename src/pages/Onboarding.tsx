@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { 
@@ -37,7 +37,7 @@ export const Onboarding: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const { register, handleSubmit, watch, formState: { errors } } = useForm<ProfileSchemaInput>({
+  const { register, handleSubmit, control, formState: { errors } } = useForm<ProfileSchemaInput>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     resolver: zodResolver(profileSchema) as any,
     defaultValues: {
@@ -48,7 +48,7 @@ export const Onboarding: React.FC = () => {
   })
 
   // Watch cycle start date to show computed end date automatically
-  const cycleStart = watch('cchn_cycle_start')
+  const cycleStart = useWatch({ control, name: 'cchn_cycle_start' })
   const getCycleEndDisplay = () => {
     if (!cycleStart) return t.cycleEndAuto
     const end = addYears(cycleStart, 5)
@@ -162,7 +162,7 @@ export const Onboarding: React.FC = () => {
                 {errors.full_name && <p className="text-[10px] text-destructive mt-0.5">{errors.full_name.message}</p>}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
                   <Label htmlFor="date_of_birth" className="text-xs">{t.dobLabel}</Label>
                   <Input id="date_of_birth" className="text-xs" type="date" {...register('date_of_birth')} />
@@ -179,7 +179,7 @@ export const Onboarding: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
                   <Label htmlFor="specialty" className="text-xs">{t.specialty} *</Label>
                   <div className="relative">
@@ -222,7 +222,7 @@ export const Onboarding: React.FC = () => {
                 {errors.cchn_number && <p className="text-[10px] text-destructive mt-0.5">{errors.cchn_number.message}</p>}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
                   <Label htmlFor="cchn_issued_date" className="text-xs">{t.cchnIssuedDate} *</Label>
                   <Input id="cchn_issued_date" className="text-xs" type="date" {...register('cchn_issued_date')} />
@@ -236,7 +236,7 @@ export const Onboarding: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
                   <Label className="text-xs">{t.cchnCycleEnd}</Label>
                   <div className="flex h-9 w-full rounded bg-secondary/60 px-3 py-2 text-xs font-semibold text-primary items-center border border-border/40 select-none">
