@@ -15,11 +15,15 @@ export const courseSchema = z.object({
   certificate_url: z.string()
     .refine((val) => {
       if (!val) return true
-      if (val.startsWith('http://') || val.startsWith('https://')) {
-        return val.startsWith(import.meta.env.VITE_SUPABASE_URL)
+      const isUrl = val.startsWith('http://') || val.startsWith('https://')
+      if (isUrl) {
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+        if (!val.startsWith(supabaseUrl)) return false
+        const pathPart = val.split('/certificates/')[1]
+        return pathPart ? /^[0-9a-f-]{36}\/[0-9]+\.(pdf|jpg|jpeg|png|webp)$/i.test(pathPart) : false
       }
-      return true
-    }, 'Chỉ chấp nhận URL chứng chỉ nội bộ hoặc đường dẫn hợp lệ')
+      return /^[0-9a-f-]{36}\/[0-9]+\.(pdf|jpg|jpeg|png|webp)$/i.test(val)
+    }, 'Đường dẫn chứng chỉ không hợp lệ')
     .optional()
     .or(z.literal('')),
   certificate_name: z.string().optional(),

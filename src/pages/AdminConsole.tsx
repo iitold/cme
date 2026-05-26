@@ -60,10 +60,44 @@ export const AdminConsole: React.FC = () => {
 
   // Data state
   const [doctors, setDoctors] = useState<Doctor[]>([])
-  const [courses, setCourses] = useState<Course[]>([])
+  const [totalDoctorsCount, setTotalDoctorsCount] = useState(0)
+  const [doctorsPage, setDoctorsPage] = useState(0)
   const [requests, setRequests] = useState<ResetRequest[]>([])
   const [bannedUserIds, setBannedUserIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
+
+  // Stats state for dashboard
+  const [stats, setStats] = useState({
+    totalDoctors: 0,
+    totalCourses: 0,
+    totalCredits: 0,
+    specialtyCounts: {} as Record<string, number>,
+    provinceCounts: {} as Record<string, number>,
+  })
+
+  // Recent activities state
+  interface RecentDoctor {
+    id: string
+    full_name: string
+    email: string | null
+    created_at: string
+  }
+
+  interface RecentCourse {
+    id: string
+    course_name: string
+    credits: number
+    created_at: string
+    doctor_id: string
+    doctors: {
+      full_name: string
+    } | {
+      full_name: string
+    }[] | null
+  }
+
+  const [recentDocs, setRecentDocs] = useState<RecentDoctor[]>([])
+  const [recentCourses, setRecentCourses] = useState<RecentCourse[]>([])
 
   // Modal states
   const [editingDoctor, setEditingDoctor] = useState<Doctor | null>(null)
@@ -73,6 +107,8 @@ export const AdminConsole: React.FC = () => {
 
   // CME Folder States
   const [selectedDoctorCme, setSelectedDoctorCme] = useState<Doctor | null>(null)
+  const [doctorCourses, setDoctorCourses] = useState<Course[]>([])
+  const [loadingDoctorCourses, setLoadingDoctorCourses] = useState(false)
   const [isCmeFormOpen, setIsCmeFormOpen] = useState(false)
   const [editingCourse, setEditingCourse] = useState<Course | null>(null)
 
@@ -89,61 +125,142 @@ export const AdminConsole: React.FC = () => {
   const [certificateName, setCertificateName] = useState('')
   const [certificateUrl, setCertificateUrl] = useState('')
 
+  const fetchDoctors = useCallback(async (search = '', page = 0) => {
+    try {
+      let query = supabase
+        .from('doctors')
+        .select('id,user_id,email,full_name,phone,specialty,workplace,province,role,cchn_number,cchn_cycle_start,cchn_cycle_end,cme_target_credits,cme_min_per_year,created_at,updated_at', { count: 'exact' })
+      
+      if (search) {
+        query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%,cchn_number.ilike.%${search}%,specialty.ilike.%${search}%,workplace.ilike.%${search}%`)
+      }
+
+      const { data, count, error } = await query
+        .order('full_name')
+        .range(page * 50, page * 50 + 49)
+
+      if (error) throw error
+      setDoctors(data || [])
+      setTotalDoctorsCount(count || 0)
+    } catch (e) {
+      console.error('Error fetching doctors:', e)
+    }
+  }, [])
+
+  const fetchDoctorCourses = useCallback(async (doctorId: string) => {
+    setLoadingDoctorCourses(true)
+    try {
+      const { data, error } = await supabase
+        .from('courses')
+        .select('*')
+        .eq('doctor_id', doctorId)
+        .order('end_date', { ascending: false })
+      if (error) throw error
+      setDoctorCourses(data || [])
+    } catch (e) {
+      console.error('Error fetching doctor courses:', e)
+    } finally {
+      setLoadingDoctorCourses(false)
+    }
+  }, [])
+
   const loadData = useCallback(async (showSpinner = false) => {
     if (showSpinner) setLoading(true)
     try {
-      // Fetch all doctors
-      const { data: doctorsData, error: docError } = await supabase
+      // 1. Fetch Stats for Dashboard
+      const { data: docStats, error: docStatsError } = await supabase
         .from('doctors')
-        .select('*')
-        .order('full_name', { ascending: true })
+        .select('specialty,province')
+      if (docStatsError) throw docStatsError
 
-      if (docError) throw docError
-      setDoctors(doctorsData || [])
-
-      // Fetch all courses
-      const { data: coursesData, error: courseError } = await supabase
+      const { data: coursesStats, error: coursesStatsError } = await supabase
         .from('courses')
-        .select('*')
-        .order('end_date', { ascending: false })
+        .select('credits')
+      if (coursesStatsError) throw coursesStatsError
 
-      if (courseError) throw courseError
-      setCourses(coursesData || [])
+      const totalDoctorsVal = docStats?.length || 0
+      const totalCoursesVal = coursesStats?.length || 0
+      const totalCreditsVal = coursesStats?.reduce((sum, c) => sum + (c.credits || 0), 0) || 0
 
-      // Fetch all password reset requests
+      const specCounts = (docStats || []).reduce((acc: Record<string, number>, doc) => {
+        const spec = doc.specialty || (language === 'vi' ? 'Chưa cập nhật' : 'Unspecified')
+        acc[spec] = (acc[spec] || 0) + 1
+        return acc
+      }, {})
+
+      const provCounts = (docStats || []).reduce((acc: Record<string, number>, doc) => {
+        const prov = doc.province || (language === 'vi' ? 'Chưa cập nhật' : 'Unspecified')
+        acc[prov] = (acc[prov] || 0) + 1
+        return acc
+      }, {})
+
+      setStats({
+        totalDoctors: totalDoctorsVal,
+        totalCourses: totalCoursesVal,
+        totalCredits: totalCreditsVal,
+        specialtyCounts: specCounts,
+        provinceCounts: provCounts,
+      })
+
+      // 2. Fetch Password Reset Requests
       const { data: requestsData, error: reqError } = await supabase
         .from('password_reset_requests')
         .select('*')
         .order('created_at', { ascending: false })
-
       if (reqError) throw reqError
       setRequests(requestsData || [])
 
-      // Fetch banned users
+      // 3. Fetch Banned User IDs
       const { data: bannedData, error: banError } = await supabase
         .rpc('admin_get_banned_users')
-
       if (!banError && bannedData) {
-        setBannedUserIds(new Set(bannedData.map((b: { banned_user_id: string }) => b.banned_user_id)));
+        setBannedUserIds(new Set(bannedData.map((b: { banned_user_id: string }) => b.banned_user_id)))
       }
+
+      // 4. Fetch 5 most recent doctors and courses for activity log
+      const { data: recentDocsData } = await supabase
+        .from('doctors')
+        .select('id, full_name, email, created_at')
+        .order('created_at', { ascending: false })
+        .limit(5)
+      setRecentDocs(recentDocsData || [])
+
+      const { data: recentCoursesData } = await supabase
+        .from('courses')
+        .select('id, course_name, credits, created_at, doctor_id, doctors(full_name)')
+        .order('created_at', { ascending: false })
+        .limit(5)
+      setRecentCourses(recentCoursesData || [])
+
+      // 5. Fetch Doctors
+      await fetchDoctors(searchQuery, doctorsPage)
     } catch (e: unknown) {
       console.error('Error loading admin console data:', e)
       toast.error(language === 'vi' ? 'Không thể tải dữ liệu quản trị' : 'Failed to load administration data')
     } finally {
       setLoading(false)
     }
-  }, [language])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [language, fetchDoctors])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData()
   }, [loadData])
 
-  // derived state: selected doctor's courses
-  const doctorCourses = useMemo(() => {
-    if (!selectedDoctorCme) return []
-    return courses.filter(c => c.doctor_id === selectedDoctorCme.id)
-  }, [selectedDoctorCme, courses])
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchDoctors(searchQuery, doctorsPage)
+  }, [searchQuery, doctorsPage, fetchDoctors])
+
+  useEffect(() => {
+    if (selectedDoctorCme) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchDoctorCourses(selectedDoctorCme.id)
+    } else {
+      setDoctorCourses([])
+    }
+  }, [selectedDoctorCme, fetchDoctorCourses])
 
   // Admin Actions
   const handleEditSubmit = async (e: React.FormEvent) => {
@@ -151,6 +268,8 @@ export const AdminConsole: React.FC = () => {
     if (!editingDoctor) return
     setIsSubmitting(true)
     try {
+      const originalDoctor = doctors.find(d => d.id === editingDoctor.id)
+
       const { error } = await supabase
         .from('doctors')
         .update({
@@ -160,11 +279,18 @@ export const AdminConsole: React.FC = () => {
           workplace: editingDoctor.workplace || null,
           province: editingDoctor.province || null,
           cme_target_credits: Number(editingDoctor.cme_target_credits),
-          role: editingDoctor.role,
         })
         .eq('id', editingDoctor.id)
 
       if (error) throw error
+
+      if (originalDoctor && originalDoctor.role !== editingDoctor.role) {
+        const { error: roleError } = await supabase.rpc('admin_update_doctor_role', {
+          target_doctor_id: editingDoctor.id,
+          new_role: editingDoctor.role,
+        })
+        if (roleError) throw roleError
+      }
 
       toast.success(language === 'vi' ? 'Cập nhật hồ sơ bác sĩ thành công!' : 'Doctor profile updated successfully!')
       setEditingDoctor(null)
@@ -351,6 +477,9 @@ export const AdminConsole: React.FC = () => {
       setIsCmeFormOpen(false)
       setEditingCourse(null)
       loadData()
+      if (selectedDoctorCme) {
+        fetchDoctorCourses(selectedDoctorCme.id)
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
       toast.error(message)
@@ -373,6 +502,9 @@ export const AdminConsole: React.FC = () => {
           : (newStatus === 'provider_verified' ? 'Certificate approved!' : 'Approval cancelled!')
       )
       loadData()
+      if (selectedDoctorCme) {
+        fetchDoctorCourses(selectedDoctorCme.id)
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
       toast.error(message)
@@ -395,6 +527,9 @@ export const AdminConsole: React.FC = () => {
       if (error) throw error
       toast.success(language === 'vi' ? 'Xóa khóa học thành công!' : 'Course deleted successfully!')
       loadData()
+      if (selectedDoctorCme) {
+        fetchDoctorCourses(selectedDoctorCme.id)
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
       toast.error(message)
@@ -417,47 +552,22 @@ export const AdminConsole: React.FC = () => {
     }
   }
 
-  // Search logic
-  const filteredDoctors = doctors.filter(doc => {
-    const q = searchQuery.toLowerCase()
-    return (
-      doc.full_name?.toLowerCase().includes(q) ||
-      doc.email?.toLowerCase().includes(q) ||
-      doc.cchn_number?.toLowerCase().includes(q) ||
-      doc.specialty?.toLowerCase().includes(q) ||
-      doc.workplace?.toLowerCase().includes(q)
-    )
-  })
+  // Doctors are filtered and paginated on the server
+  const filteredDoctors = doctors
 
-  // Compute Dashboard Analytics
-  const totalDoctors = doctors.length
-  const totalCourses = courses.length
-  const totalCredits = courses.reduce((sum, c) => sum + (c.credits || 0), 0)
+  // Compute Dashboard Analytics from stats state
+  const totalDoctors = stats.totalDoctors
+  const totalCourses = stats.totalCourses
+  const totalCredits = stats.totalCredits
   const averageCredits = totalDoctors ? Math.round(totalCredits / totalDoctors) : 0
 
-  const specialtyCounts = doctors.reduce((acc: Record<string, number>, doc) => {
-    const spec = doc.specialty || (language === 'vi' ? 'Chưa cập nhật' : 'Unspecified')
-    acc[spec] = (acc[spec] || 0) + 1
-    return acc
-  }, {})
-  const sortedSpecialties = Object.entries(specialtyCounts).sort((a, b) => b[1] - a[1]).slice(0, 5)
+  const sortedSpecialties = Object.entries(stats.specialtyCounts).sort((a, b) => b[1] - a[1]).slice(0, 5)
+  const sortedProvinces = Object.entries(stats.provinceCounts).sort((a, b) => b[1] - a[1]).slice(0, 5)
 
-  const provinceCounts = doctors.reduce((acc: Record<string, number>, doc) => {
-    const prov = doc.province || (language === 'vi' ? 'Chưa cập nhật' : 'Unspecified')
-    acc[prov] = (acc[prov] || 0) + 1
-    return acc
-  }, {})
-  const sortedProvinces = Object.entries(provinceCounts).sort((a, b) => b[1] - a[1]).slice(0, 5)
-
-  // Memoized Doctors Map for O(1) lookups
-  const doctorsMap = useMemo(() => {
-    return new Map(doctors.map(d => [d.id, d]))
-  }, [doctors])
-
-  // Combined Recent Activities with O(1) lookup
+  // Combined Recent Activities using server-fetched recent activities
   const recentActivities = useMemo(() => {
     return [
-      ...doctors.map(d => ({
+      ...recentDocs.map(d => ({
         id: `doc-${d.id}`,
         type: 'doctor',
         title: language === 'vi' ? `Bác sĩ ${d.full_name} đăng ký` : `Dr. ${d.full_name} registered`,
@@ -465,14 +575,16 @@ export const AdminConsole: React.FC = () => {
         date: new Date(d.created_at),
         icon: faUserShield
       })),
-      ...courses.map(c => {
-        const doc = doctorsMap.get(c.doctor_id)
+      ...recentCourses.map(c => {
+        const doctorName = Array.isArray(c.doctors)
+          ? c.doctors[0]?.full_name
+          : (c.doctors as { full_name: string } | null)?.full_name
         return {
           id: `course-${c.id}`,
           type: 'course',
           title: language === 'vi' 
-            ? `Bác sĩ ${doc?.full_name || 'Hệ thống'} đã thêm khóa học` 
-            : `Dr. ${doc?.full_name || 'System'} added a course`,
+            ? `Bác sĩ ${doctorName || 'Hệ thống'} đã thêm khóa học` 
+            : `Dr. ${doctorName || 'System'} added a course`,
           subtitle: `${c.course_name} (+${c.credits} tín chỉ)`,
           date: new Date(c.created_at),
           icon: faBook
@@ -481,7 +593,7 @@ export const AdminConsole: React.FC = () => {
     ]
     .sort((a, b) => b.date.getTime() - a.date.getTime())
     .slice(0, 5)
-  }, [doctors, courses, language, doctorsMap])
+  }, [recentDocs, recentCourses, language])
 
   // Redirect if not admin
   if (!doctor || doctor.role !== 'admin') {
@@ -705,7 +817,10 @@ export const AdminConsole: React.FC = () => {
                 <Input
                   placeholder={language === 'vi' ? 'Tìm bác sĩ theo tên, email, CCHN...' : 'Search by name, email, license...'}
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value)
+                    setDoctorsPage(0)
+                  }}
                   className="pl-9 text-xs border-border placeholder:text-muted-foreground/60 bg-card"
                 />
               </div>
@@ -820,6 +935,35 @@ export const AdminConsole: React.FC = () => {
                     </tbody>
                   </table>
                 </div>
+                {totalDoctorsCount > 50 && (
+                  <div className="flex items-center justify-between border-t border-border p-3.5 bg-secondary/5 text-xs text-muted-foreground select-none">
+                    <div>
+                      {language === 'vi' 
+                        ? `Hiển thị ${doctorsPage * 50 + 1}-${Math.min((doctorsPage + 1) * 50, totalDoctorsCount)} trong tổng số ${totalDoctorsCount} bác sĩ`
+                        : `Showing ${doctorsPage * 50 + 1}-${Math.min((doctorsPage + 1) * 50, totalDoctorsCount)} of ${totalDoctorsCount} doctors`}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={doctorsPage === 0}
+                        onClick={() => setDoctorsPage(prev => Math.max(0, prev - 1))}
+                        className="h-8 text-xs font-semibold px-3 bg-transparent border-border"
+                      >
+                        {language === 'vi' ? 'Trước' : 'Previous'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={(doctorsPage + 1) * 50 >= totalDoctorsCount}
+                        onClick={() => setDoctorsPage(prev => prev + 1)}
+                        className="h-8 text-xs font-semibold px-3 bg-transparent border-border"
+                      >
+                        {language === 'vi' ? 'Sau' : 'Next'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </Card>
             </div>
           )}
@@ -1290,7 +1434,12 @@ export const AdminConsole: React.FC = () => {
               </div>
 
               <div className="divide-y divide-border/60 max-h-[50vh] overflow-y-auto border border-border rounded-lg bg-secondary/5 pr-1.5 pl-2.5">
-                {doctorCourses.length === 0 ? (
+                {loadingDoctorCourses ? (
+                  <div className="text-center py-8 text-xs text-muted-foreground flex items-center justify-center gap-2">
+                    <FontAwesomeIcon icon={faSpinner} className="animate-spin text-primary text-sm" />
+                    <span>{language === 'vi' ? 'Đang tải minh chứng...' : 'Loading proofs...'}</span>
+                  </div>
+                ) : doctorCourses.length === 0 ? (
                   <div className="text-center py-8 text-xs text-muted-foreground">
                     {language === 'vi' ? 'Bác sĩ chưa ghi nhận khóa học nào.' : 'No courses recorded by this doctor.'}
                   </div>
