@@ -7,6 +7,7 @@ import { Dashboard } from './pages/Dashboard'
 import { Courses } from './pages/Courses'
 import { Certificates } from './pages/Certificates'
 import { Profile } from './pages/Profile'
+import { AdminConsole } from './pages/AdminConsole'
 import { ProtectedRoute } from './components/layout/ProtectedRoute'
 import { AppShell } from './components/layout/AppShell'
 
@@ -50,6 +51,10 @@ export const router = createBrowserRouter([
       {
         path: '/profile',
         element: <Profile />,
+      },
+      {
+        path: '/admin',
+        element: <AdminConsole />,
       },
     ],
   },

@@ -13,6 +13,8 @@ export interface Doctor {
   province?: string
   cme_target_credits: number
   cme_min_per_year: number
+  role?: 'doctor' | 'admin'
+  email?: string
   created_at: string
   updated_at: string
 }

@@ -65,6 +65,7 @@ export const Onboarding: React.FC = () => {
         .from('doctors')
         .insert({
           user_id: user.id,
+          email: user.email,
           full_name: data.full_name,
           date_of_birth: data.date_of_birth || null,
           phone: data.phone || null,

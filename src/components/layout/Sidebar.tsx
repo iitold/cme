@@ -7,8 +7,10 @@ import {
   faAward, 
   faUser, 
   faRightFromBracket,
-  faBriefcaseMedical
+  faBriefcaseMedical,
+  faUserShield
 } from '@fortawesome/free-solid-svg-icons'
+import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
 import { useAuthStore } from '../../stores/auth.store'
 import { useLanguageStore } from '../../stores/language.store'
 import { translations } from '../../lib/translations'
@@ -22,12 +24,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
   const { language } = useLanguageStore()
   const t = translations[language]
 
-  const menuItems = [
+  const menuItems: { name: string; path: string; icon: IconDefinition }[] = [
     { name: t.navOverview, path: '/', icon: faChartLine },
     { name: t.navCourses, path: '/courses', icon: faBook },
     { name: t.navCertificates, path: '/certificates', icon: faAward },
     { name: t.navProfile, path: '/profile', icon: faUser },
   ]
+
+  if (doctor?.role === 'admin') {
+    menuItems.push({
+      name: language === 'vi' ? 'Quản trị hệ thống' : 'Admin Console',
+      path: '/admin',
+      icon: faUserShield
+    })
+  }
 
   return (
     <div className="flex h-full w-64 flex-col border-r border-border bg-white px-4 py-6 dark:bg-card">

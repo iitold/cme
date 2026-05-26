@@ -24,6 +24,7 @@ import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog'
 import { toast } from 'sonner'
 
 const loginSchema = z.object({
@@ -45,6 +46,38 @@ export const Login: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isMagicSubmitting, setIsMagicSubmitting] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+
+  // Forgot password states
+  const [showForgotDialog, setShowForgotDialog] = useState(false)
+  const [forgotEmail, setForgotEmail] = useState('')
+  const [forgotSubmitting, setForgotSubmitting] = useState(false)
+  const [forgotSuccess, setForgotSuccess] = useState(false)
+
+  const handleForgotSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!forgotEmail) return
+    setForgotSubmitting(true)
+    try {
+      const { error } = await supabase
+        .from('password_reset_requests')
+        .insert({ email: forgotEmail })
+
+      if (error) throw error
+
+      setForgotSuccess(true)
+      toast.success(language === 'vi' ? 'Đã gửi yêu cầu khôi phục tới Admin!' : 'Password reset request sent to Admin!')
+      setTimeout(() => {
+        setShowForgotDialog(false)
+        setForgotSuccess(false)
+        setForgotEmail('')
+      }, 3000)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err)
+      toast.error(message)
+    } finally {
+      setForgotSubmitting(false)
+    }
+  }
 
   const { register, handleSubmit, formState: { errors }, getValues } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -184,6 +217,13 @@ export const Login: React.FC = () => {
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password" className="text-xs font-semibold text-muted-foreground">{t.passwordLabel}</Label>
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotDialog(true)}
+                    className="text-[10px] text-primary hover:underline font-semibold"
+                  >
+                    {t.forgotPassword || 'Quên mật khẩu?'}
+                  </button>
                 </div>
                 <div className="relative">
                   <FontAwesomeIcon icon={faLock} className="absolute left-3 top-[32%] text-muted-foreground/75 text-xs" />
@@ -239,6 +279,56 @@ export const Login: React.FC = () => {
           </CardFooter>
         </Card>
       </div>
+
+      {/* Forgot Password Dialog */}
+      <Dialog open={showForgotDialog} onOpenChange={(open) => !open && setShowForgotDialog(false)}>
+        <DialogContent className="max-w-sm bg-white dark:bg-card border-border text-foreground">
+          <form onSubmit={handleForgotSubmit}>
+            <DialogHeader>
+              <DialogTitle className="text-base font-bold">
+                {language === 'vi' ? 'Yêu cầu khôi phục mật khẩu' : 'Forgot Password Request'}
+              </DialogTitle>
+              <DialogDescription className="text-[11px] text-muted-foreground">
+                {language === 'vi' 
+                  ? 'Nhập email của bạn để gửi yêu cầu đổi mật khẩu tới quản trị viên.' 
+                  : 'Enter your email to send a password reset request to the administrator.'}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              {forgotSuccess ? (
+                <div className="flex items-center gap-2 rounded-md bg-emerald-500/10 border border-emerald-500/20 p-2.5 text-xs text-emerald-600 dark:text-emerald-400">
+                  <span>{language === 'vi' ? 'Yêu cầu đã gửi thành công! Vui lòng liên hệ Admin để nhận mật khẩu.' : 'Request sent! Contact admin to get your new password.'}</span>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <Label htmlFor="forgot_email" className="text-xs">{t.emailLabel} *</Label>
+                  <Input
+                    id="forgot_email"
+                    type="email"
+                    placeholder={t.emailPlaceholder}
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    className="text-xs border-border"
+                    required
+                  />
+                </div>
+              )}
+            </div>
+
+            {!forgotSuccess && (
+              <DialogFooter className="border-t border-border pt-4">
+                <Button type="button" variant="outline" size="sm" className="text-xs h-8.5" onClick={() => setShowForgotDialog(false)} disabled={forgotSubmitting}>
+                  {t.cancelBtn}
+                </Button>
+                <Button type="submit" size="sm" disabled={forgotSubmitting} className="bg-primary text-white hover:bg-primary/95 text-xs font-semibold h-8.5 px-4 shadow-sm">
+                  {forgotSubmitting ? (language === 'vi' ? 'Đang gửi...' : 'Sending...') : (language === 'vi' ? 'Gửi yêu cầu' : 'Send Request')}
+                </Button>
+              </DialogFooter>
+            )}
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
