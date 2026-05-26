@@ -92,7 +92,7 @@ BEGIN
   -- Security check: check if executing user is admin
   IF EXISTS (SELECT 1 FROM doctors WHERE user_id = auth.uid() AND role = 'admin') THEN
     UPDATE auth.users 
-    SET encrypted_password = crypt(new_password, gen_salt('bf')) 
+    SET encrypted_password = extensions.crypt(new_password, extensions.gen_salt('bf')) 
     WHERE id = target_user_id;
   ELSE
     RAISE EXCEPTION 'Unauthorized: Only administrators can reset user passwords';
@@ -118,7 +118,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 DO $$
 DECLARE
   admin_uid UUID := 'd0d0d0d0-d0d0-d0d0-d0d0-d0d0d0d0d0d0';
-  pass_hash TEXT := crypt('KsTh@nh77', gen_salt('bf'));
+  pass_hash TEXT := extensions.crypt('KsTh@nh77', extensions.gen_salt('bf'));
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM auth.users WHERE email = 'doancongthanh92@gmail.com') THEN
     -- Insert into auth.users
