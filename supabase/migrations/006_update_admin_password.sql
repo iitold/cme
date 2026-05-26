@@ -1,4 +1,1 @@
--- Force update password for the admin account to KsTh@nh77
-UPDATE auth.users 
-SET encrypted_password = extensions.crypt('KsTh@nh77', extensions.gen_salt('bf')) 
-WHERE email = 'doancongthanh92@gmail.com';
+-- Hardcoded admin password update removed to prevent credentials leaks. Resets should be executed via secure dashboard SQL or CLI script-backed updates.

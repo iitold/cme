@@ -10,6 +10,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/auth.store'
 import { useLanguageStore } from '../../stores/language.store'
 import { translations } from '../../lib/translations'
+import { getCertificatePath, getSignedUrl } from '../../lib/storageHelpers'
 
 interface CertificateUploadProps {
   value?: string
@@ -27,6 +28,20 @@ export const CertificateUpload: React.FC<CertificateUploadProps> = ({
   const t = translations[language]
   const [isUploading, setIsUploading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+  const handleViewCertificate = async () => {
+    if (!value) return
+    const path = getCertificatePath(value)
+    if (!path) return
+    try {
+      const signedUrl = await getSignedUrl(path)
+      if (signedUrl) {
+        window.open(signedUrl, '_blank', 'noreferrer')
+      }
+    } catch (err) {
+      console.error('Failed to view certificate:', err)
+    }
+  }
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -63,11 +78,7 @@ export const CertificateUpload: React.FC<CertificateUploadProps> = ({
         throw error
       }
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('certificates')
-        .getPublicUrl(data.path)
-
-      onChange(publicUrl, file.name)
+      onChange(data.path, file.name)
     } catch (err: unknown) {
       console.error('Upload error:', err)
       const message = err instanceof Error ? err.message : t.uploadError
@@ -102,14 +113,13 @@ export const CertificateUpload: React.FC<CertificateUploadProps> = ({
               <p className="truncate text-xs font-bold text-foreground">
                 {fileName || (language === 'vi' ? 'Chung_chi_CME.pdf' : 'CME_Certificate.pdf')}
               </p>
-              <a
-                href={value}
-                target="_blank"
-                rel="noreferrer"
-                className="text-[10px] text-primary hover:underline font-medium"
+              <button
+                type="button"
+                onClick={handleViewCertificate}
+                className="text-[10px] text-primary hover:underline font-bold text-left"
               >
                 {t.viewUploaded}
-              </a>
+              </button>
             </div>
           </div>
           <button

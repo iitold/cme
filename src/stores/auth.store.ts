@@ -82,18 +82,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (e) {
       console.error('Exception during sign out:', e)
     } finally {
-      // Unsubscribe listener first if any
-      const cleanup = get().cleanupListener
-      if (cleanup) {
-        cleanup()
-      }
       set({ 
         session: null, 
         user: null, 
         doctor: null, 
         isLoading: false, 
-        isInitialized: false,
-        cleanupListener: null 
+        isInitialized: true
       })
     }
   },

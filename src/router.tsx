@@ -1,4 +1,6 @@
 
+/* eslint-disable react-refresh/only-export-components */
+import { lazy, Suspense } from 'react'
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { Login } from './pages/Login'
 import { Register } from './pages/Register'
@@ -7,9 +9,21 @@ import { Dashboard } from './pages/Dashboard'
 import { Courses } from './pages/Courses'
 import { Certificates } from './pages/Certificates'
 import { Profile } from './pages/Profile'
-import { AdminConsole } from './pages/AdminConsole'
 import { ProtectedRoute } from './components/layout/ProtectedRoute'
 import { AppShell } from './components/layout/AppShell'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faSpinner } from '@fortawesome/free-solid-svg-icons'
+
+// Lazy load AdminConsole to keep initial bundle size small
+const AdminConsole = lazy(() =>
+  import('./pages/AdminConsole').then((module) => ({ default: module.AdminConsole }))
+)
+
+const LoadingFallback = () => (
+  <div className="flex h-[50vh] w-full items-center justify-center">
+    <FontAwesomeIcon icon={faSpinner} className="text-primary animate-spin text-2xl" />
+  </div>
+)
 
 export const router = createBrowserRouter([
   {
@@ -54,7 +68,11 @@ export const router = createBrowserRouter([
       },
       {
         path: '/admin',
-        element: <AdminConsole />,
+        element: (
+          <Suspense fallback={<LoadingFallback />}>
+            <AdminConsole />
+          </Suspense>
+        ),
       },
     ],
   },

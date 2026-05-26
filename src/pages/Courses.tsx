@@ -23,6 +23,7 @@ import { Card, CardContent } from '../components/ui/card'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog'
+import { getCertificatePath, getSignedUrl } from '../lib/storageHelpers'
 import { toast } from 'sonner'
 
 export const Courses: React.FC = () => {
@@ -30,6 +31,20 @@ export const Courses: React.FC = () => {
   const { courses, isLoading, addCourse, updateCourse, deleteCourse } = useCourses()
   const { language } = useLanguageStore()
   const t = translations[language]
+
+  const handleViewCertificate = async (urlOrPath: string | undefined | null) => {
+    if (!urlOrPath) return
+    const path = getCertificatePath(urlOrPath)
+    if (!path) return
+    try {
+      const signedUrl = await getSignedUrl(path)
+      if (signedUrl) {
+        window.open(signedUrl, '_blank', 'noreferrer')
+      }
+    } catch (err) {
+      console.error('Failed to view certificate:', err)
+    }
+  }
 
   // State
   const [searchTerm, setSearchTerm] = useState('')
@@ -286,15 +301,13 @@ export const Courses: React.FC = () => {
 
                   <div className="flex items-center gap-2">
                     {course.certificate_url && (
-                      <a 
-                        href={course.certificate_url}
-                        target="_blank" 
-                        rel="noreferrer"
+                      <button 
+                        onClick={() => handleViewCertificate(course.certificate_url)}
                         title={course.certificate_name || (language === 'vi' ? "Xem chứng chỉ" : "View certificate")}
                         className="flex h-8 w-8 items-center justify-center rounded bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 transition-colors"
                       >
                         <FontAwesomeIcon icon={faFileLines} className="text-[13px]" />
-                      </a>
+                      </button>
                     )}
                     
                     <button

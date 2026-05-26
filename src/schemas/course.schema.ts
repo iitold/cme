@@ -12,7 +12,16 @@ export const courseSchema = z.object({
   }),
   start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Ngày bắt đầu không hợp lệ (yyyy-MM-dd)'),
   end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Ngày kết thúc không hợp lệ (yyyy-MM-dd)'),
-  certificate_url: z.string().optional(),
+  certificate_url: z.string()
+    .refine((val) => {
+      if (!val) return true
+      if (val.startsWith('http://') || val.startsWith('https://')) {
+        return val.startsWith(import.meta.env.VITE_SUPABASE_URL)
+      }
+      return true
+    }, 'Chỉ chấp nhận URL chứng chỉ nội bộ hoặc đường dẫn hợp lệ')
+    .optional()
+    .or(z.literal('')),
   certificate_name: z.string().optional(),
   notes: z.string().optional(),
 }).refine((data) => {

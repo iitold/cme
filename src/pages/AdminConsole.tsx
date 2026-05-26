@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import { Navigate } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { 
@@ -36,8 +36,9 @@ import { Card } from '../components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
 import { CertificateUpload } from '../components/cme/CertificateUpload'
+import { getCertificatePath, getSignedUrl } from '../lib/storageHelpers'
 import { toast } from 'sonner'
-import type { Doctor } from '../types'
+import type { Doctor, Course, ProviderType, CourseType, VerificationStatus } from '../types'
 
 interface ResetRequest {
   id: string
@@ -59,7 +60,7 @@ export const AdminConsole: React.FC = () => {
 
   // Data state
   const [doctors, setDoctors] = useState<Doctor[]>([])
-  const [courses, setCourses] = useState<any[]>([])
+  const [courses, setCourses] = useState<Course[]>([])
   const [requests, setRequests] = useState<ResetRequest[]>([])
   const [bannedUserIds, setBannedUserIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
@@ -72,19 +73,18 @@ export const AdminConsole: React.FC = () => {
 
   // CME Folder States
   const [selectedDoctorCme, setSelectedDoctorCme] = useState<Doctor | null>(null)
-  const [doctorCourses, setDoctorCourses] = useState<any[]>([])
   const [isCmeFormOpen, setIsCmeFormOpen] = useState(false)
-  const [editingCourse, setEditingCourse] = useState<any | null>(null)
+  const [editingCourse, setEditingCourse] = useState<Course | null>(null)
 
   // Course Form Fields
   const [courseName, setCourseName] = useState('')
   const [providerName, setProviderName] = useState('')
-  const [providerType, setProviderType] = useState<'university' | 'hospital' | 'association' | 'online' | 'other'>('hospital')
+  const [providerType, setProviderType] = useState<ProviderType>('hospital')
   const [credits, setCredits] = useState<number>(24)
-  const [courseType, setCourseType] = useState<'theory' | 'clinical' | 'online' | 'conference'>('theory')
+  const [courseType, setCourseType] = useState<CourseType>('theory')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
-  const [verificationStatus, setVerificationStatus] = useState<'self_entered' | 'provider_verified' | 'institution_verified'>('self_entered')
+  const [verificationStatus, setVerificationStatus] = useState<VerificationStatus>('self_entered')
   const [notes, setNotes] = useState('')
   const [certificateName, setCertificateName] = useState('')
   const [certificateUrl, setCertificateUrl] = useState('')
@@ -124,7 +124,7 @@ export const AdminConsole: React.FC = () => {
         .rpc('admin_get_banned_users')
 
       if (!banError && bannedData) {
-        setBannedUserIds(new Set(bannedData.map((b: any) => b.banned_user_id)));
+        setBannedUserIds(new Set(bannedData.map((b: { banned_user_id: string }) => b.banned_user_id)));
       }
     } catch (e: unknown) {
       console.error('Error loading admin console data:', e)
@@ -135,17 +135,14 @@ export const AdminConsole: React.FC = () => {
   }, [language])
 
   useEffect(() => {
-    loadData(true)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadData()
   }, [loadData])
 
-  // Sync selected doctor's courses when courses change
-  useEffect(() => {
-    if (selectedDoctorCme) {
-      const filtered = courses.filter(c => c.doctor_id === selectedDoctorCme.id)
-      setDoctorCourses(filtered)
-    } else {
-      setDoctorCourses([])
-    }
+  // derived state: selected doctor's courses
+  const doctorCourses = useMemo(() => {
+    if (!selectedDoctorCme) return []
+    return courses.filter(c => c.doctor_id === selectedDoctorCme.id)
   }, [selectedDoctorCme, courses])
 
   // Admin Actions
@@ -222,15 +219,15 @@ export const AdminConsole: React.FC = () => {
     }
   }
 
-  const handleToggleLock = async (doctor: Doctor) => {
-    const isCurrentlyLocked = bannedUserIds.has(doctor.user_id)
+  const handleToggleLock = async (doctorToLock: Doctor) => {
+    const isCurrentlyLocked = bannedUserIds.has(doctorToLock.user_id)
     const actionText = isCurrentlyLocked 
-      ? (language === 'vi' ? 'Mở khóa' : 'Lock') 
+      ? (language === 'vi' ? 'Mở khóa' : 'Unlock') 
       : (language === 'vi' ? 'Khóa' : 'Lock')
       
     try {
       const { error } = await supabase.rpc('admin_toggle_lock_user', {
-        target_user_id: doctor.user_id,
+        target_user_id: doctorToLock.user_id,
         is_locked: !isCurrentlyLocked
       })
 
@@ -244,17 +241,17 @@ export const AdminConsole: React.FC = () => {
     }
   }
 
-  const handleDeleteUser = async (doctor: Doctor) => {
+  const handleDeleteUser = async (doctorToDelete: Doctor) => {
     const confirmDelete = window.confirm(
       language === 'vi' 
-        ? `CẢNH BÁO: Bạn có chắc chắn muốn XÓA VĨNH VIỄN bác sĩ ${doctor.full_name}? Hành động này không thể hoàn tác.`
-        : `WARNING: Are you sure you want to PERMANENTLY DELETE doctor ${doctor.full_name}? This cannot be undone.`
+        ? `CẢNH BÁO: Bạn có chắc chắn muốn XÓA VĨNH VIỄN bác sĩ ${doctorToDelete.full_name}? Hành động này không thể hoàn tác.`
+        : `WARNING: Are you sure you want to PERMANENTLY DELETE doctor ${doctorToDelete.full_name}? This cannot be undone.`
     )
     if (!confirmDelete) return
 
     try {
       const { error } = await supabase.rpc('admin_delete_user', {
-        target_user_id: doctor.user_id
+        target_user_id: doctorToDelete.user_id
       })
 
       if (error) throw error
@@ -285,7 +282,7 @@ export const AdminConsole: React.FC = () => {
   }
 
   // CME Specific Actions
-  const openCmeForm = (course: any | null = null) => {
+  const openCmeForm = (course: Course | null = null) => {
     if (course) {
       setEditingCourse(course)
       setCourseName(course.course_name || '')
@@ -362,8 +359,8 @@ export const AdminConsole: React.FC = () => {
     }
   }
 
-  const handleCmeToggleVerify = async (course: any) => {
-    const newStatus = course.verification_status === 'self_entered' ? 'provider_verified' : 'self_entered'
+  const handleCmeToggleVerify = async (course: Course) => {
+    const newStatus: VerificationStatus = course.verification_status === 'self_entered' ? 'provider_verified' : 'self_entered'
     try {
       const { error } = await supabase
         .from('courses')
@@ -404,6 +401,22 @@ export const AdminConsole: React.FC = () => {
     }
   }
 
+  const handleViewCertificate = async (urlOrPath: string | undefined | null) => {
+    if (!urlOrPath) return
+    const path = getCertificatePath(urlOrPath)
+    if (!path) return
+    try {
+      const signedUrl = await getSignedUrl(path)
+      if (signedUrl) {
+        window.open(signedUrl, '_blank', 'noreferrer')
+      } else {
+        toast.error(language === 'vi' ? 'Không thể tạo liên kết tải chứng chỉ.' : 'Failed to generate signed download link.')
+      }
+    } catch (err) {
+      console.error('Failed to view certificate:', err)
+    }
+  }
+
   // Search logic
   const filteredDoctors = doctors.filter(doc => {
     const q = searchQuery.toLowerCase()
@@ -436,32 +449,39 @@ export const AdminConsole: React.FC = () => {
   }, {})
   const sortedProvinces = Object.entries(provinceCounts).sort((a, b) => b[1] - a[1]).slice(0, 5)
 
-  // Combined Recent Activities
-  const recentActivities = [
-    ...doctors.map(d => ({
-      id: `doc-${d.id}`,
-      type: 'doctor',
-      title: language === 'vi' ? `Bác sĩ ${d.full_name} đăng ký` : `Dr. ${d.full_name} registered`,
-      subtitle: d.email || '',
-      date: new Date(d.created_at),
-      icon: faUserShield
-    })),
-    ...courses.map(c => {
-      const doc = doctors.find(d => d.id === c.doctor_id)
-      return {
-        id: `course-${c.id}`,
-        type: 'course',
-        title: language === 'vi' 
-          ? `Bác sĩ ${doc?.full_name || 'Hệ thống'} đã thêm khóa học` 
-          : `Dr. ${doc?.full_name || 'System'} added a course`,
-        subtitle: `${c.course_name} (+${c.credits} tín chỉ)`,
-        date: new Date(c.created_at),
-        icon: faBook
-      }
-    })
-  ]
-  .sort((a, b) => b.date.getTime() - a.date.getTime())
-  .slice(0, 5)
+  // Memoized Doctors Map for O(1) lookups
+  const doctorsMap = useMemo(() => {
+    return new Map(doctors.map(d => [d.id, d]))
+  }, [doctors])
+
+  // Combined Recent Activities with O(1) lookup
+  const recentActivities = useMemo(() => {
+    return [
+      ...doctors.map(d => ({
+        id: `doc-${d.id}`,
+        type: 'doctor',
+        title: language === 'vi' ? `Bác sĩ ${d.full_name} đăng ký` : `Dr. ${d.full_name} registered`,
+        subtitle: d.email || '',
+        date: new Date(d.created_at),
+        icon: faUserShield
+      })),
+      ...courses.map(c => {
+        const doc = doctorsMap.get(c.doctor_id)
+        return {
+          id: `course-${c.id}`,
+          type: 'course',
+          title: language === 'vi' 
+            ? `Bác sĩ ${doc?.full_name || 'Hệ thống'} đã thêm khóa học` 
+            : `Dr. ${doc?.full_name || 'System'} added a course`,
+          subtitle: `${c.course_name} (+${c.credits} tín chỉ)`,
+          date: new Date(c.created_at),
+          icon: faBook
+        }
+      })
+    ]
+    .sort((a, b) => b.date.getTime() - a.date.getTime())
+    .slice(0, 5)
+  }, [doctors, courses, language, doctorsMap])
 
   // Redirect if not admin
   if (!doctor || doctor.role !== 'admin') {
@@ -1034,13 +1054,14 @@ export const AdminConsole: React.FC = () => {
                 <Label htmlFor="reset_pass" className="text-xs">{language === 'vi' ? 'Mật khẩu mới *' : 'New Password *'}</Label>
                 <Input
                   id="reset_pass"
-                  type="text"
-                  placeholder="Min 6 characters"
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder="Min 12 characters"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   className="text-xs border-border"
                   required
-                  minLength={6}
+                  minLength={12}
                 />
               </div>
             </div>
@@ -1119,7 +1140,7 @@ export const AdminConsole: React.FC = () => {
                   <Label htmlFor="provider_type" className="text-xs">{language === 'vi' ? 'Loại hình đơn vị' : 'Provider Type'} *</Label>
                   <Select
                     value={providerType}
-                    onValueChange={(val: any) => setProviderType(val)}
+                    onValueChange={(val: ProviderType) => setProviderType(val)}
                   >
                     <SelectTrigger id="provider_type" className="text-xs border-border">
                       <SelectValue />
@@ -1152,7 +1173,7 @@ export const AdminConsole: React.FC = () => {
                   <Label htmlFor="course_type" className="text-xs">{language === 'vi' ? 'Hình thức đào tạo' : 'Course Type'} *</Label>
                   <Select
                     value={courseType}
-                    onValueChange={(val: any) => setCourseType(val)}
+                    onValueChange={(val: CourseType) => setCourseType(val)}
                   >
                     <SelectTrigger id="course_type" className="text-xs border-border">
                       <SelectValue />
@@ -1169,7 +1190,7 @@ export const AdminConsole: React.FC = () => {
                   <Label htmlFor="verification_status" className="text-xs">{language === 'vi' ? 'Trạng thái duyệt' : 'Verification Status'} *</Label>
                   <Select
                     value={verificationStatus}
-                    onValueChange={(val: any) => setVerificationStatus(val)}
+                    onValueChange={(val: VerificationStatus) => setVerificationStatus(val)}
                   >
                     <SelectTrigger id="verification_status" className="text-xs border-border">
                       <SelectValue />
@@ -1294,15 +1315,13 @@ export const AdminConsole: React.FC = () => {
                                 : (language === 'vi' ? 'Tự khai báo' : 'Self Entered')}
                             </span>
                             {c.certificate_url && (
-                              <a 
-                                href={c.certificate_url} 
-                                target="_blank" 
-                                rel="noreferrer" 
+                              <button 
+                                onClick={() => handleViewCertificate(c.certificate_url)}
                                 className="text-[9px] text-primary hover:underline font-semibold flex items-center gap-1"
                               >
                                 <FontAwesomeIcon icon={faEye} />
                                 <span>{language === 'vi' ? 'Xem minh chứng' : 'View Proof'}</span>
-                              </a>
+                              </button>
                             )}
                           </div>
                         </div>

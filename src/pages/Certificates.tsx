@@ -14,11 +14,27 @@ import { translations } from '../lib/translations'
 import { formatVietnamDate, parseLocalDate, addYears } from '../lib/date'
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../components/ui/card'
 import { Button } from '../components/ui/button'
+import { getCertificatePath, getSignedUrl } from '../lib/storageHelpers'
+import { SecureImage } from '../components/cme/SecureImage'
 
 export const Certificates: React.FC = () => {
   const { courses, isLoading } = useCourses()
   const { language } = useLanguageStore()
   const t = translations[language]
+
+  const handleViewCertificate = async (urlOrPath: string | undefined | null) => {
+    if (!urlOrPath) return
+    const path = getCertificatePath(urlOrPath)
+    if (!path) return
+    try {
+      const signedUrl = await getSignedUrl(path)
+      if (signedUrl) {
+        window.open(signedUrl, '_blank', 'noreferrer')
+      }
+    } catch (err) {
+      console.error('Failed to view certificate:', err)
+    }
+  }
 
   const isCourseValid = (endDateStr: string) => {
     const today = new Date()
@@ -68,7 +84,7 @@ export const Certificates: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
           {certCourses.map((course) => {
-            const isPdf = course.certificate_url?.toLowerCase().endsWith('.pdf')
+            const isPdf = getCertificatePath(course.certificate_url).toLowerCase().endsWith('.pdf')
             const isValid = isCourseValid(course.end_date)
             return (
               <Card 
@@ -78,8 +94,8 @@ export const Certificates: React.FC = () => {
                 {/* Visual Thumbnail */}
                 <div className="relative h-32 bg-secondary/40 flex items-center justify-center border-b border-border/60 overflow-hidden">
                   {!isPdf && course.certificate_url ? (
-                    <img 
-                      src={course.certificate_url} 
+                    <SecureImage 
+                      srcPath={course.certificate_url} 
                       alt={course.course_name}
                       className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300"
                     />
@@ -113,28 +129,24 @@ export const Certificates: React.FC = () => {
                 </CardContent>
 
                 <CardFooter className="p-2.5 border-t border-border/60 flex gap-2">
-                  <a 
-                    href={course.certificate_url} 
-                    target="_blank" 
-                    rel="noreferrer"
-                    className="flex-1"
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => handleViewCertificate(course.certificate_url)}
+                    className="flex-1 text-xs flex items-center justify-center gap-1.5 h-8 border-border"
                   >
-                    <Button variant="outline" size="sm" className="w-full text-xs flex items-center justify-center gap-1.5 h-8 border-border">
-                      <FontAwesomeIcon icon={faEye} className="text-[11px]" />
-                      <span>{t.viewDetails}</span>
-                    </Button>
-                  </a>
+                    <FontAwesomeIcon icon={faEye} className="text-[11px]" />
+                    <span>{t.viewDetails}</span>
+                  </Button>
                   
-                  <a 
-                    href={course.certificate_url}
-                    download={course.certificate_name || 'minh_chung_cme'}
-                    target="_blank" 
-                    rel="noreferrer"
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    onClick={() => handleViewCertificate(course.certificate_url)}
+                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
                   >
-                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground">
-                      <FontAwesomeIcon icon={faDownload} className="text-[13px]" />
-                    </Button>
-                  </a>
+                    <FontAwesomeIcon icon={faDownload} className="text-[13px]" />
+                  </Button>
                 </CardFooter>
               </Card>
             )
