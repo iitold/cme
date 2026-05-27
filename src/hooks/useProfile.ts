@@ -13,7 +13,7 @@ export function useProfile() {
       if (!user?.id) return null
       const { data, error } = await supabase
         .from('doctors')
-        .select('*')
+        .select('id,user_id,email,full_name,date_of_birth,phone,cchn_number,cchn_issued_date,cchn_cycle_start,cchn_cycle_end,specialty,workplace,province,cme_target_credits,cme_min_per_year,role,created_at,updated_at')
         .eq('user_id', user.id)
         .maybeSingle()
 
@@ -22,6 +22,8 @@ export function useProfile() {
       return data
     },
     enabled: !!user?.id,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
   })
 
   const updateProfileMutation = useMutation({

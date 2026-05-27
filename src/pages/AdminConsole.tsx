@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react'
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { Navigate } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { 
@@ -48,6 +48,28 @@ interface ResetRequest {
   created_at: string
 }
 
+interface AdminDashboardStats {
+  totalDoctors: number
+  totalCourses: number
+  totalCredits: number
+  specialtyCounts: Record<string, number>
+  provinceCounts: Record<string, number>
+}
+
+const DOCTORS_PAGE_SIZE = 50
+const RESET_REQUESTS_LIMIT = 50
+
+function normalizePostgrestSearchTerm(value: string) {
+  return value.trim().replace(/[,%()"]/g, ' ').replace(/\s+/g, ' ')
+}
+
+function localizeCountLabels(counts: Record<string, number>, language: 'vi' | 'en') {
+  const unspecified = language === 'vi' ? 'Chưa cập nhật' : 'Unspecified'
+  return Object.fromEntries(
+    Object.entries(counts).map(([key, value]) => [key === '__unspecified__' ? unspecified : key, value])
+  )
+}
+
 export const AdminConsole: React.FC = () => {
   const { doctor } = useAuthStore()
   const { language } = useLanguageStore()
@@ -58,6 +80,7 @@ export const AdminConsole: React.FC = () => {
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
 
   // Data state
   const [doctors, setDoctors] = useState<Doctor[]>([])
@@ -66,6 +89,7 @@ export const AdminConsole: React.FC = () => {
   const [requests, setRequests] = useState<ResetRequest[]>([])
   const [bannedUserIds, setBannedUserIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
+  const doctorsRequestId = useRef(0)
 
   // Stats state for dashboard
   const [stats, setStats] = useState({
@@ -126,20 +150,23 @@ export const AdminConsole: React.FC = () => {
   const [certificateUrl, setCertificateUrl] = useState('')
 
   const fetchDoctors = useCallback(async (search = '', page = 0) => {
+    const requestId = ++doctorsRequestId.current
     try {
       let query = supabase
         .from('doctors')
         .select('id,user_id,email,full_name,phone,specialty,workplace,province,role,cchn_number,cchn_cycle_start,cchn_cycle_end,cme_target_credits,cme_min_per_year,created_at,updated_at', { count: 'exact' })
       
-      if (search) {
-        query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%,cchn_number.ilike.%${search}%,specialty.ilike.%${search}%,workplace.ilike.%${search}%`)
+      const safeSearch = normalizePostgrestSearchTerm(search)
+      if (safeSearch) {
+        query = query.or(`full_name.ilike.%${safeSearch}%,email.ilike.%${safeSearch}%,cchn_number.ilike.%${safeSearch}%,specialty.ilike.%${safeSearch}%,workplace.ilike.%${safeSearch}%`)
       }
 
       const { data, count, error } = await query
         .order('full_name')
-        .range(page * 50, page * 50 + 49)
+        .range(page * DOCTORS_PAGE_SIZE, page * DOCTORS_PAGE_SIZE + DOCTORS_PAGE_SIZE - 1)
 
       if (error) throw error
+      if (requestId !== doctorsRequestId.current) return
       setDoctors(data || [])
       setTotalDoctorsCount(count || 0)
     } catch (e) {
@@ -152,7 +179,7 @@ export const AdminConsole: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('courses')
-        .select('*')
+        .select('id,doctor_id,course_name,provider_name,provider_type,credits,course_type,start_date,end_date,verification_status,certificate_url,certificate_name,notes,created_at,updated_at')
         .eq('doctor_id', doctorId)
         .order('end_date', { ascending: false })
       if (error) throw error
@@ -164,60 +191,61 @@ export const AdminConsole: React.FC = () => {
     }
   }, [])
 
-  const loadData = useCallback(async (showSpinner = false) => {
+  const loadDashboardDataFallback = useCallback(async () => {
+    const { data: docStats, error: docStatsError } = await supabase
+      .from('doctors')
+      .select('specialty,province')
+    if (docStatsError) throw docStatsError
+
+    const { data: coursesStats, error: coursesStatsError } = await supabase
+      .from('courses')
+      .select('credits')
+    if (coursesStatsError) throw coursesStatsError
+
+    const totalDoctorsVal = docStats?.length || 0
+    const totalCoursesVal = coursesStats?.length || 0
+    const totalCreditsVal = coursesStats?.reduce((sum, c) => sum + (c.credits || 0), 0) || 0
+
+    const specCounts = (docStats || []).reduce((acc: Record<string, number>, doc) => {
+      const spec = doc.specialty || (language === 'vi' ? 'Chưa cập nhật' : 'Unspecified')
+      acc[spec] = (acc[spec] || 0) + 1
+      return acc
+    }, {})
+
+    const provCounts = (docStats || []).reduce((acc: Record<string, number>, doc) => {
+      const prov = doc.province || (language === 'vi' ? 'Chưa cập nhật' : 'Unspecified')
+      acc[prov] = (acc[prov] || 0) + 1
+      return acc
+    }, {})
+
+    setStats({
+      totalDoctors: totalDoctorsVal,
+      totalCourses: totalCoursesVal,
+      totalCredits: totalCreditsVal,
+      specialtyCounts: specCounts,
+      provinceCounts: provCounts,
+    })
+  }, [language])
+
+  const loadDashboardData = useCallback(async (showSpinner = false) => {
     if (showSpinner) setLoading(true)
     try {
-      // 1. Fetch Stats for Dashboard
-      const { data: docStats, error: docStatsError } = await supabase
-        .from('doctors')
-        .select('specialty,province')
-      if (docStatsError) throw docStatsError
+      const { data: rpcStats, error: rpcStatsError } = await supabase.rpc('admin_dashboard_stats')
 
-      const { data: coursesStats, error: coursesStatsError } = await supabase
-        .from('courses')
-        .select('credits')
-      if (coursesStatsError) throw coursesStatsError
-
-      const totalDoctorsVal = docStats?.length || 0
-      const totalCoursesVal = coursesStats?.length || 0
-      const totalCreditsVal = coursesStats?.reduce((sum, c) => sum + (c.credits || 0), 0) || 0
-
-      const specCounts = (docStats || []).reduce((acc: Record<string, number>, doc) => {
-        const spec = doc.specialty || (language === 'vi' ? 'Chưa cập nhật' : 'Unspecified')
-        acc[spec] = (acc[spec] || 0) + 1
-        return acc
-      }, {})
-
-      const provCounts = (docStats || []).reduce((acc: Record<string, number>, doc) => {
-        const prov = doc.province || (language === 'vi' ? 'Chưa cập nhật' : 'Unspecified')
-        acc[prov] = (acc[prov] || 0) + 1
-        return acc
-      }, {})
-
-      setStats({
-        totalDoctors: totalDoctorsVal,
-        totalCourses: totalCoursesVal,
-        totalCredits: totalCreditsVal,
-        specialtyCounts: specCounts,
-        provinceCounts: provCounts,
-      })
-
-      // 2. Fetch Password Reset Requests
-      const { data: requestsData, error: reqError } = await supabase
-        .from('password_reset_requests')
-        .select('*')
-        .order('created_at', { ascending: false })
-      if (reqError) throw reqError
-      setRequests(requestsData || [])
-
-      // 3. Fetch Banned User IDs
-      const { data: bannedData, error: banError } = await supabase
-        .rpc('admin_get_banned_users')
-      if (!banError && bannedData) {
-        setBannedUserIds(new Set(bannedData.map((b: { banned_user_id: string }) => b.banned_user_id)))
+      if (!rpcStatsError && rpcStats) {
+        const parsedStats = rpcStats as AdminDashboardStats
+        setStats({
+          totalDoctors: Number(parsedStats.totalDoctors || 0),
+          totalCourses: Number(parsedStats.totalCourses || 0),
+          totalCredits: Number(parsedStats.totalCredits || 0),
+          specialtyCounts: localizeCountLabels(parsedStats.specialtyCounts || {}, language),
+          provinceCounts: localizeCountLabels(parsedStats.provinceCounts || {}, language),
+        })
+      } else {
+        // Fallback keeps old deployments usable until the aggregate RPC migration is applied.
+        await loadDashboardDataFallback()
       }
 
-      // 4. Fetch 5 most recent doctors and courses for activity log
       const { data: recentDocsData } = await supabase
         .from('doctors')
         .select('id, full_name, email, created_at')
@@ -231,27 +259,64 @@ export const AdminConsole: React.FC = () => {
         .order('created_at', { ascending: false })
         .limit(5)
       setRecentCourses(recentCoursesData || [])
-
-      // 5. Fetch Doctors
-      await fetchDoctors(searchQuery, doctorsPage)
     } catch (e: unknown) {
-      console.error('Error loading admin console data:', e)
+      console.error('Error loading admin dashboard data:', e)
       toast.error(language === 'vi' ? 'Không thể tải dữ liệu quản trị' : 'Failed to load administration data')
     } finally {
       setLoading(false)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [language, fetchDoctors])
+  }, [language, loadDashboardDataFallback])
+
+  const loadRequestsData = useCallback(async () => {
+    try {
+      const { data: requestsData, error: reqError } = await supabase
+        .from('password_reset_requests')
+        .select('id,email,status,created_at')
+        .order('created_at', { ascending: false })
+        .limit(RESET_REQUESTS_LIMIT)
+      if (reqError) throw reqError
+      setRequests(requestsData || [])
+
+      const { data: bannedData, error: banError } = await supabase
+        .rpc('admin_get_banned_users')
+      if (!banError && bannedData) {
+        setBannedUserIds(new Set(bannedData.map((b: { banned_user_id: string }) => b.banned_user_id)))
+      }
+    } catch (e: unknown) {
+      console.error('Error loading password reset requests:', e)
+      toast.error(language === 'vi' ? 'Không thể tải dữ liệu quản trị' : 'Failed to load administration data')
+    }
+  }, [language])
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadData()
-  }, [loadData])
+    const timer = window.setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery)
+      setDoctorsPage(0)
+    }, 350)
+
+    return () => window.clearTimeout(timer)
+  }, [searchQuery])
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchDoctors(searchQuery, doctorsPage)
-  }, [searchQuery, doctorsPage, fetchDoctors])
+    if (activeTab === 'dashboard') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      loadDashboardData()
+    }
+  }, [activeTab, loadDashboardData])
+
+  useEffect(() => {
+    if (activeTab === 'requests') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      loadRequestsData()
+    }
+  }, [activeTab, loadRequestsData])
+
+  useEffect(() => {
+    if (activeTab === 'doctors') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchDoctors(debouncedSearchQuery, doctorsPage)
+    }
+  }, [activeTab, debouncedSearchQuery, doctorsPage, fetchDoctors])
 
   useEffect(() => {
     if (selectedDoctorCme) {
@@ -262,10 +327,22 @@ export const AdminConsole: React.FC = () => {
     }
   }, [selectedDoctorCme, fetchDoctorCourses])
 
+  const refreshVisibleData = useCallback(async () => {
+    if (activeTab === 'dashboard') {
+      await loadDashboardData()
+    }
+    if (activeTab === 'requests') {
+      await loadRequestsData()
+    }
+    if (activeTab === 'doctors') {
+      await fetchDoctors(debouncedSearchQuery, doctorsPage)
+    }
+  }, [activeTab, debouncedSearchQuery, doctorsPage, fetchDoctors, loadDashboardData, loadRequestsData])
+
   // Admin Actions
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!editingDoctor) return
+    if (!editingDoctor || isSubmitting) return
     setIsSubmitting(true)
     try {
       const originalDoctor = doctors.find(d => d.id === editingDoctor.id)
@@ -294,19 +371,10 @@ export const AdminConsole: React.FC = () => {
 
       toast.success(language === 'vi' ? 'Cập nhật hồ sơ bác sĩ thành công!' : 'Doctor profile updated successfully!')
       setEditingDoctor(null)
-      loadData()
+      refreshVisibleData()
     } catch (err: unknown) {
-      const status = typeof err === 'object' && err !== null && 'status' in err ? Number(err.status) : null
       const message = err instanceof Error ? err.message : String(err)
-      const isRateLimited = status === 429 || /rate|too many/i.test(message)
-
-      toast.error(
-        isRateLimited
-          ? (language === 'vi'
-            ? 'Supabase đang giới hạn số lần gửi email khôi phục. Vui lòng chờ vài phút rồi thử lại.'
-            : 'Supabase is rate-limiting password reset emails. Please wait a few minutes and try again.')
-          : message
-      )
+      toast.error(message)
     } finally {
       setIsSubmitting(false)
     }
@@ -314,7 +382,7 @@ export const AdminConsole: React.FC = () => {
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!resetPasswordUser) return
+    if (!resetPasswordUser || isSubmitting) return
     setIsSubmitting(true)
     try {
       const targetEmail = resetPasswordUser.email
@@ -339,16 +407,26 @@ export const AdminConsole: React.FC = () => {
       }
 
       setResetPasswordUser(null)
-      loadData()
+      refreshVisibleData()
     } catch (err: unknown) {
+      const status = typeof err === 'object' && err !== null && 'status' in err ? Number(err.status) : null
       const message = err instanceof Error ? err.message : String(err)
-      toast.error(message)
+      const isRateLimited = status === 429 || /rate|too many/i.test(message)
+      toast.error(
+        isRateLimited
+          ? (language === 'vi'
+            ? 'Supabase đang giới hạn số lần gửi email khôi phục. Vui lòng chờ vài phút rồi thử lại.'
+            : 'Supabase is rate-limiting password reset emails. Please wait a few minutes and try again.')
+          : message
+      )
     } finally {
       setIsSubmitting(false)
     }
   }
 
   const handleToggleLock = async (doctorToLock: Doctor) => {
+    if (isSubmitting) return
+    setIsSubmitting(true)
     const isCurrentlyLocked = bannedUserIds.has(doctorToLock.user_id)
     const actionText = isCurrentlyLocked 
       ? (language === 'vi' ? 'Mở khóa' : 'Unlock') 
@@ -363,14 +441,17 @@ export const AdminConsole: React.FC = () => {
       if (error) throw error
 
       toast.success(language === 'vi' ? `${actionText} tài khoản thành công!` : `Account ${actionText}ed successfully!`)
-      loadData()
+      refreshVisibleData()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
       toast.error(message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
   const handleDeleteUser = async (doctorToDelete: Doctor) => {
+    if (isSubmitting) return
     const confirmDelete = window.confirm(
       language === 'vi' 
         ? `CẢNH BÁO: Bạn có chắc chắn muốn XÓA VĨNH VIỄN bác sĩ ${doctorToDelete.full_name}? Hành động này không thể hoàn tác.`
@@ -378,6 +459,7 @@ export const AdminConsole: React.FC = () => {
     )
     if (!confirmDelete) return
 
+    setIsSubmitting(true)
     try {
       const { error } = await supabase.rpc('admin_delete_user', {
         target_user_id: doctorToDelete.user_id
@@ -386,14 +468,18 @@ export const AdminConsole: React.FC = () => {
       if (error) throw error
 
       toast.success(language === 'vi' ? 'Xóa tài khoản bác sĩ thành công!' : 'Doctor account deleted successfully!')
-      loadData()
+      refreshVisibleData()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
       toast.error(message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
   const handleUpdateRequestStatus = async (requestId: string, status: 'completed' | 'rejected') => {
+    if (isSubmitting) return
+    setIsSubmitting(true)
     try {
       const { error } = await supabase
         .from('password_reset_requests')
@@ -403,10 +489,34 @@ export const AdminConsole: React.FC = () => {
       if (error) throw error
 
       toast.success(language === 'vi' ? 'Cập nhật yêu cầu thành công!' : 'Request updated successfully!')
-      loadData()
+      refreshVisibleData()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
       toast.error(message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleDeleteResetRequest = async (requestId: string) => {
+    if (isSubmitting) return
+    const confirmed = window.confirm(language === 'vi' ? 'Xóa yêu cầu này?' : 'Delete this request?')
+    if (!confirmed) return
+
+    setIsSubmitting(true)
+    try {
+      const { error } = await supabase
+        .from('password_reset_requests')
+        .delete()
+        .eq('id', requestId)
+      if (error) throw error
+      toast.success(language === 'vi' ? 'Đã xóa yêu cầu.' : 'Request deleted.')
+      refreshVisibleData()
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err)
+      toast.error(message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -444,7 +554,7 @@ export const AdminConsole: React.FC = () => {
 
   const handleCmeFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedDoctorCme) return
+    if (!selectedDoctorCme || isSubmitting) return
     setIsSubmitting(true)
 
     const payload = {
@@ -479,7 +589,7 @@ export const AdminConsole: React.FC = () => {
       }
       setIsCmeFormOpen(false)
       setEditingCourse(null)
-      loadData()
+      refreshVisibleData()
       if (selectedDoctorCme) {
         fetchDoctorCourses(selectedDoctorCme.id)
       }
@@ -492,6 +602,8 @@ export const AdminConsole: React.FC = () => {
   }
 
   const handleCmeToggleVerify = async (course: Course) => {
+    if (isSubmitting) return
+    setIsSubmitting(true)
     const newStatus: VerificationStatus = course.verification_status === 'self_entered' ? 'provider_verified' : 'self_entered'
     try {
       const { error } = await supabase
@@ -504,17 +616,20 @@ export const AdminConsole: React.FC = () => {
           ? (newStatus === 'provider_verified' ? 'Đã phê duyệt chứng chỉ!' : 'Đã hủy phê duyệt!')
           : (newStatus === 'provider_verified' ? 'Certificate approved!' : 'Approval cancelled!')
       )
-      loadData()
+      refreshVisibleData()
       if (selectedDoctorCme) {
         fetchDoctorCourses(selectedDoctorCme.id)
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
       toast.error(message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
   const handleCmeDelete = async (courseId: string) => {
+    if (isSubmitting) return
     const confirmDelete = window.confirm(
       language === 'vi' 
         ? 'Bạn có chắc chắn muốn xóa khóa học này không?' 
@@ -522,6 +637,7 @@ export const AdminConsole: React.FC = () => {
     )
     if (!confirmDelete) return
 
+    setIsSubmitting(true)
     try {
       const { error } = await supabase
         .from('courses')
@@ -529,13 +645,15 @@ export const AdminConsole: React.FC = () => {
         .eq('id', courseId)
       if (error) throw error
       toast.success(language === 'vi' ? 'Xóa khóa học thành công!' : 'Course deleted successfully!')
-      loadData()
+      refreshVisibleData()
       if (selectedDoctorCme) {
         fetchDoctorCourses(selectedDoctorCme.id)
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
       toast.error(message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -598,6 +716,11 @@ export const AdminConsole: React.FC = () => {
     .slice(0, 5)
   }, [recentDocs, recentCourses, language])
 
+  const pendingRequestsCount = useMemo(
+    () => requests.filter(r => r.status === 'pending').length,
+    [requests]
+  )
+
   // Redirect if not admin
   if (!doctor || doctor.role !== 'admin') {
     return <Navigate to="/" replace />
@@ -644,7 +767,7 @@ export const AdminConsole: React.FC = () => {
           <FontAwesomeIcon icon={faUsers} className="text-xs" />
           {language === 'vi' ? 'Quản lý Bác sĩ' : 'Manage Doctors'}
           <span className="ml-1 px-1.5 py-0.2 bg-secondary text-[10px] text-muted-foreground rounded-full">
-            {doctors.length}
+            {totalDoctorsCount || doctors.length}
           </span>
         </button>
         <button
@@ -657,9 +780,9 @@ export const AdminConsole: React.FC = () => {
         >
           <FontAwesomeIcon icon={faKey} className="text-xs" />
           {language === 'vi' ? 'Yêu cầu Đổi mật khẩu' : 'Reset Requests'}
-          {requests.filter(r => r.status === 'pending').length > 0 && (
+          {pendingRequestsCount > 0 && (
             <span className="ml-1 px-1.5 py-0.2 bg-rose-500 text-[10px] text-white rounded-full animate-pulse">
-              {requests.filter(r => r.status === 'pending').length}
+              {pendingRequestsCount}
             </span>
           )}
         </button>
@@ -1037,12 +1160,12 @@ export const AdminConsole: React.FC = () => {
                     </tbody>
                   </table>
                 </div>
-                {totalDoctorsCount > 50 && (
+                {totalDoctorsCount > DOCTORS_PAGE_SIZE && (
                   <div className="flex flex-col gap-3 border-t border-border bg-secondary/5 p-3.5 text-xs text-muted-foreground select-none sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       {language === 'vi' 
-                        ? `Hiển thị ${doctorsPage * 50 + 1}-${Math.min((doctorsPage + 1) * 50, totalDoctorsCount)} trong tổng số ${totalDoctorsCount} bác sĩ`
-                        : `Showing ${doctorsPage * 50 + 1}-${Math.min((doctorsPage + 1) * 50, totalDoctorsCount)} of ${totalDoctorsCount} doctors`}
+                        ? `Hiển thị ${doctorsPage * DOCTORS_PAGE_SIZE + 1}-${Math.min((doctorsPage + 1) * DOCTORS_PAGE_SIZE, totalDoctorsCount)} trong tổng số ${totalDoctorsCount} bác sĩ`
+                        : `Showing ${doctorsPage * DOCTORS_PAGE_SIZE + 1}-${Math.min((doctorsPage + 1) * DOCTORS_PAGE_SIZE, totalDoctorsCount)} of ${totalDoctorsCount} doctors`}
                     </div>
                     <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
                       <Button
@@ -1057,7 +1180,7 @@ export const AdminConsole: React.FC = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        disabled={(doctorsPage + 1) * 50 >= totalDoctorsCount}
+                        disabled={(doctorsPage + 1) * DOCTORS_PAGE_SIZE >= totalDoctorsCount}
                         onClick={() => setDoctorsPage(prev => prev + 1)}
                         className="h-10 bg-transparent px-3 text-xs font-semibold border-border sm:h-8"
                       >
@@ -1134,13 +1257,8 @@ export const AdminConsole: React.FC = () => {
                                 </>
                               )}
                               <button
-                                onClick={async () => {
-                                  if (window.confirm(language === 'vi' ? 'Xóa yêu cầu này?' : 'Delete this request?')) {
-                                    await supabase.from('password_reset_requests').delete().eq('id', req.id)
-                                    toast.success(language === 'vi' ? 'Đã xóa yêu cầu.' : 'Request deleted.')
-                                    loadData()
-                                  }
-                                }}
+                                onClick={() => handleDeleteResetRequest(req.id)}
+                                disabled={isSubmitting}
                                 className="p-1.5 text-muted-foreground hover:text-rose-600 hover:bg-secondary rounded transition-colors"
                                 title={language === 'vi' ? 'Xóa' : 'Delete'}
                               >

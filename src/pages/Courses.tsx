@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useDeferredValue, useMemo, useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { 
@@ -48,6 +48,7 @@ export const Courses: React.FC = () => {
 
   // State
   const [searchTerm, setSearchTerm] = useState('')
+  const deferredSearchTerm = useDeferredValue(searchTerm)
   const [filterType, setFilterType] = useState<string>('all')
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingCourse, setEditingCourse] = useState<Course | null>(null)
@@ -63,15 +64,19 @@ export const Courses: React.FC = () => {
     }
   }, [searchParams, setSearchParams])
 
-  const filteredCourses = courses.filter((course) => {
-    const matchesSearch = 
-      course.course_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      course.provider_name.toLowerCase().includes(searchTerm.toLowerCase())
-    
-    const matchesType = filterType === 'all' || course.course_type === filterType
+  const filteredCourses = useMemo(() => {
+    const normalizedSearch = deferredSearchTerm.trim().toLowerCase()
+    return courses.filter((course) => {
+      const matchesSearch =
+        !normalizedSearch ||
+        course.course_name.toLowerCase().includes(normalizedSearch) ||
+        course.provider_name.toLowerCase().includes(normalizedSearch)
 
-    return matchesSearch && matchesType
-  })
+      const matchesType = filterType === 'all' || course.course_type === filterType
+
+      return matchesSearch && matchesType
+    })
+  }, [courses, deferredSearchTerm, filterType])
 
   const handleAddClick = () => {
     setEditingCourse(null)
@@ -84,6 +89,7 @@ export const Courses: React.FC = () => {
   }
 
   const handleFormSubmit = async (data: CourseSchemaInput) => {
+    if (isSubmitting) return
     setIsSubmitting(true)
     try {
       if (editingCourse) {
@@ -105,7 +111,7 @@ export const Courses: React.FC = () => {
   }
 
   const handleDeleteConfirm = async () => {
-    if (!deletingCourseId) return
+    if (!deletingCourseId || isSubmitting) return
     setIsSubmitting(true)
     try {
       await deleteCourse(deletingCourseId)

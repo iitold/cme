@@ -13,7 +13,7 @@ export function useCourses() {
       if (!doctor?.id) return []
       const { data, error } = await supabase
         .from('courses')
-        .select('*')
+        .select('id,doctor_id,course_name,provider_name,provider_type,credits,course_type,start_date,end_date,verification_status,certificate_url,certificate_name,notes,created_at,updated_at')
         .eq('doctor_id', doctor.id)
         .order('end_date', { ascending: false })
 
@@ -21,6 +21,8 @@ export function useCourses() {
       return data || []
     },
     enabled: !!doctor?.id,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
   })
 
   const addCourseMutation = useMutation({
