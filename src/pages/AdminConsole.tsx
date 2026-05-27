@@ -308,25 +308,20 @@ export const AdminConsole: React.FC = () => {
     if (!resetPasswordUser || !newPassword) return
     setIsSubmitting(true)
     try {
-      let targetUserId = ''
       if ('user_id' in resetPasswordUser) {
-        targetUserId = resetPasswordUser.user_id
+        const { error } = await supabase.rpc('admin_reset_user_password', {
+          target_user_id: resetPasswordUser.user_id,
+          new_password: newPassword
+        })
+
+        if (error) throw error
       } else {
-        const foundDoc = doctors.find(d => d.email === resetPasswordUser.email)
-        if (!foundDoc) {
-          throw new Error(language === 'vi' ? 'Không tìm thấy hồ sơ bác sĩ ứng với email này' : 'No doctor profile found for this email')
-        }
-        targetUserId = foundDoc.user_id
-      }
+        const { error } = await supabase.rpc('admin_reset_user_password_by_email', {
+          target_email: resetPasswordUser.email,
+          new_password: newPassword
+        })
 
-      const { error } = await supabase.rpc('admin_reset_user_password', {
-        target_user_id: targetUserId,
-        new_password: newPassword
-      })
-
-      if (error) throw error
-
-      if (!('user_id' in resetPasswordUser)) {
+        if (error) throw error
         await supabase
           .from('password_reset_requests')
           .update({ status: 'completed' })
