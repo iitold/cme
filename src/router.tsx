@@ -4,6 +4,7 @@ import { lazy, Suspense } from 'react'
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { Login } from './pages/Login'
 import { Register } from './pages/Register'
+import { ResetPassword } from './pages/ResetPassword'
 import { Onboarding } from './pages/Onboarding'
 import { Dashboard } from './pages/Dashboard'
 import { Courses } from './pages/Courses'
@@ -33,6 +34,10 @@ export const router = createBrowserRouter([
   {
     path: '/register',
     element: <Register />,
+  },
+  {
+    path: '/reset-password',
+    element: <ResetPassword />,
   },
   {
     path: '/onboarding',

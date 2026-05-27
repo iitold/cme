@@ -37,6 +37,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
 import { CertificateUpload } from '../components/cme/CertificateUpload'
 import { getCertificatePath, getSignedUrl } from '../lib/storageHelpers'
+import { getAuthRedirectUrl } from '../lib/authRedirect'
 import { toast } from 'sonner'
 import type { Doctor, Course, ProviderType, CourseType, VerificationStatus } from '../types'
 
@@ -102,7 +103,6 @@ export const AdminConsole: React.FC = () => {
   // Modal states
   const [editingDoctor, setEditingDoctor] = useState<Doctor | null>(null)
   const [resetPasswordUser, setResetPasswordUser] = useState<Doctor | ResetRequest | null>(null)
-  const [newPassword, setNewPassword] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // CME Folder States
@@ -305,32 +305,31 @@ export const AdminConsole: React.FC = () => {
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!resetPasswordUser || !newPassword) return
+    if (!resetPasswordUser) return
     setIsSubmitting(true)
     try {
+      const targetEmail = resetPasswordUser.email
+      if (!targetEmail) {
+        throw new Error(language === 'vi' ? 'Tài khoản này chưa có email.' : 'This account does not have an email address.')
+      }
+
+      const { error } = await supabase.auth.resetPasswordForEmail(targetEmail, {
+        redirectTo: `${getAuthRedirectUrl()}/reset-password`,
+      })
+
+      if (error) throw error
+
       if ('user_id' in resetPasswordUser) {
-        const { error } = await supabase.rpc('admin_reset_user_password', {
-          target_user_id: resetPasswordUser.user_id,
-          new_password: newPassword
-        })
-
-        if (error) throw error
+        toast.success(language === 'vi' ? 'Đã gửi email đặt lại mật khẩu cho người dùng.' : 'Password reset email sent to the user.')
       } else {
-        const { error } = await supabase.rpc('admin_reset_user_password_by_email', {
-          target_email: resetPasswordUser.email,
-          new_password: newPassword
-        })
-
-        if (error) throw error
         await supabase
           .from('password_reset_requests')
           .update({ status: 'completed' })
           .eq('id', resetPasswordUser.id)
+        toast.success(language === 'vi' ? 'Đã duyệt yêu cầu và gửi email đặt lại mật khẩu.' : 'Request approved and password reset email sent.')
       }
 
-      toast.success(language === 'vi' ? 'Đổi mật khẩu thành công!' : 'Password reset successfully!')
       setResetPasswordUser(null)
-      setNewPassword('')
       loadData()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
@@ -1114,7 +1113,7 @@ export const AdminConsole: React.FC = () => {
                                     className="h-7 text-[10px] font-semibold bg-primary text-white hover:bg-primary/95 shadow-sm"
                                   >
                                     <FontAwesomeIcon icon={faKey} className="mr-1.5" />
-                                    {language === 'vi' ? 'Duyệt & Đổi Pass' : 'Approve & Reset'}
+                                    {language === 'vi' ? 'Duyệt & Gửi Email' : 'Approve & Email'}
                                   </Button>
                                   <button
                                     onClick={() => handleUpdateRequestStatus(req.id, 'rejected')}
@@ -1272,35 +1271,26 @@ export const AdminConsole: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Reset Password Dialog */}
+      {/* Reset Password Email Dialog */}
       <Dialog open={resetPasswordUser !== null} onOpenChange={(open) => !open && setResetPasswordUser(null)}>
         <DialogContent className="max-w-sm bg-white dark:bg-card border-border text-foreground">
           <form onSubmit={handleResetPassword}>
             <DialogHeader>
               <DialogTitle className="text-base font-bold">
-                {language === 'vi' ? 'Đặt lại mật khẩu mới' : 'Reset User Password'}
+                {language === 'vi' ? 'Gửi email đặt lại mật khẩu' : 'Send Password Reset Email'}
               </DialogTitle>
               <DialogDescription className="text-[11px] text-muted-foreground">
                 {language === 'vi' 
-                  ? `Nhập mật khẩu mới cho tài khoản: ${resetPasswordUser?.email}`
-                  : `Enter the new password for account: ${resetPasswordUser?.email}`}
+                  ? `Hệ thống sẽ gửi liên kết đặt lại mật khẩu tới: ${resetPasswordUser?.email}`
+                  : `The system will send a password reset link to: ${resetPasswordUser?.email}`}
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="reset_pass" className="text-xs">{language === 'vi' ? 'Mật khẩu mới *' : 'New Password *'}</Label>
-                <Input
-                  id="reset_pass"
-                  type="password"
-                  autoComplete="new-password"
-                  placeholder="Min 12 characters"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="text-xs border-border"
-                  required
-                  minLength={12}
-                />
+              <div className="rounded-md border border-primary/15 bg-primary/5 p-3 text-[11px] leading-relaxed text-muted-foreground">
+                {language === 'vi'
+                  ? 'Người dùng sẽ tự đặt mật khẩu mới qua email. Admin không cần biết hoặc nhập mật khẩu của người dùng.'
+                  : 'The user will set a new password from the email link. Admins do not need to know or enter user passwords.'}
               </div>
             </div>
 
@@ -1309,7 +1299,7 @@ export const AdminConsole: React.FC = () => {
                 {t.cancelBtn}
               </Button>
               <Button type="submit" size="sm" disabled={isSubmitting} className="bg-primary text-white hover:bg-primary/95 text-xs font-semibold h-8.5 px-4 shadow-sm">
-                {isSubmitting ? (language === 'vi' ? 'Đang thực hiện...' : 'Resetting...') : (language === 'vi' ? 'Đổi Mật Khẩu' : 'Reset Password')}
+                {isSubmitting ? (language === 'vi' ? 'Đang gửi...' : 'Sending...') : (language === 'vi' ? 'Gửi email' : 'Send Email')}
               </Button>
             </DialogFooter>
           </form>
