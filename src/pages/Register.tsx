@@ -15,6 +15,7 @@ import {
   faMoon
 } from '@fortawesome/free-solid-svg-icons'
 import { supabase } from '../lib/supabase'
+import { getAuthRedirectUrl } from '../lib/authRedirect'
 import { useThemeStore } from '../stores/theme.store'
 import { useLanguageStore } from '../stores/language.store'
 import { translations } from '../lib/translations'
@@ -76,6 +77,7 @@ export const Register: React.FC = () => {
         email: data.email,
         password: data.password,
         options: {
+          emailRedirectTo: getAuthRedirectUrl(),
           data: {
             full_name: data.fullName,
           },

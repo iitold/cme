@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { Session, User } from '@supabase/supabase-js'
 import type { Doctor } from '../types'
 import { supabase } from '../lib/supabase'
+import { getAuthRedirectUrl } from '../lib/authRedirect'
 
 interface AuthState {
   session: Session | null
@@ -65,7 +66,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: window.location.origin,
+          emailRedirectTo: getAuthRedirectUrl(),
         },
       })
       if (error) throw error
