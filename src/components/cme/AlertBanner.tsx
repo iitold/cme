@@ -11,13 +11,11 @@ import { useLanguageStore } from '../../stores/language.store'
 
 interface AlertBannerProps {
   alertLevel: AlertLevel
-  monthsRemaining: number
   remainingCredits: number
 }
 
 export const AlertBanner: React.FC<AlertBannerProps> = ({
   alertLevel,
-  monthsRemaining,
   remainingCredits,
 }) => {
   const { language } = useLanguageStore()
@@ -40,8 +38,8 @@ export const AlertBanner: React.FC<AlertBannerProps> = ({
           </h4>
           <p className="text-[10px] text-emerald-600/90 dark:text-emerald-400/90 mt-0.5">
             {isVi 
-              ? 'Chúc mừng bác sĩ đã tích lũy đủ số tín chỉ yêu cầu cho chu kỳ hiện tại.' 
-              : 'Congratulations! You have accumulated enough credits for the current cycle.'}
+              ? 'Chúc mừng bác sĩ đã tích lũy đủ số tín chỉ yêu cầu trong 5 năm gần nhất.'
+              : 'Congratulations! You have accumulated enough required credits in the last 5 years.'}
           </p>
         </div>
       </div>
@@ -52,37 +50,37 @@ export const AlertBanner: React.FC<AlertBannerProps> = ({
     info: {
       border: 'border-blue-200 bg-blue-50/40 dark:border-blue-900/50 dark:bg-blue-950/20',
       iconBg: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-      title: isVi ? 'Nhắc nhở chu kỳ CME' : 'CME Cycle Reminder',
+      title: isVi ? 'Nhắc nhở hồ sơ CME' : 'CME Record Reminder',
       desc: isVi 
-        ? `Bác sĩ còn ${monthsRemaining} tháng để tích lũy thêm ${remainingCredits} tín chỉ. Hãy sắp xếp tham gia các lớp học bổ sung.`
-        : `You have ${monthsRemaining} months left to accumulate ${remainingCredits} credits. Please arrange to participate in additional courses.`,
+        ? `Bác sĩ còn thiếu ${remainingCredits} tín chỉ trong giai đoạn 5 năm gần nhất. Hãy bổ sung chứng chỉ hoặc ghi nhận khóa học phù hợp.`
+        : `You are missing ${remainingCredits} credits in the rolling 5-year window. Please add eligible certificates or courses.`,
       icon: faCircleInfo,
     },
     warning: {
       border: 'border-amber-200 bg-amber-50/40 dark:border-amber-900/50 dark:bg-amber-950/20',
       iconBg: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-      title: isVi ? 'Chú ý thời hạn chu kỳ' : 'Cycle Deadline Notice',
+      title: isVi ? 'Thiếu tín chỉ CME' : 'CME Credit Gap',
       desc: isVi 
-        ? `Chu kỳ CME sẽ kết thúc sau ${monthsRemaining} tháng. Bác sĩ còn thiếu ${remainingCredits} tín chỉ. Hãy đăng ký các khóa học gấp.`
-        : `The CME cycle will end in ${monthsRemaining} months. You are missing ${remainingCredits} credits. Please register for courses urgently.`,
+        ? `Hồ sơ hiện còn thiếu ${remainingCredits} tín chỉ khi tính lùi từ hôm nay về 5 năm trước. Các chứng chỉ quá 5 năm sẽ không được cộng vào tổng này.`
+        : `Your record is missing ${remainingCredits} credits when calculated from today back 5 years. Certificates older than 5 years are excluded.`,
       icon: faBell,
     },
     critical: {
       border: 'border-rose-200 bg-rose-50/40 dark:border-rose-900/50 dark:bg-rose-950/20 motion-safe:animate-pulse',
       iconBg: 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
-      title: isVi ? 'CẢNH BÁO SẮP HẾT HẠN' : 'EXPIRATION WARNING',
+      title: isVi ? 'CẢNH BÁO THIẾU TÍN CHỈ' : 'CREDIT GAP WARNING',
       desc: isVi 
-        ? `Thời hạn chu kỳ chỉ còn ${monthsRemaining} tháng! Bác sĩ vẫn thiếu ${remainingCredits} tín chỉ. Việc thiếu CME có thể ảnh hưởng đến CCHN theo quy định pháp luật.`
-        : `The cycle deadline is in only ${monthsRemaining} months! You are still missing ${remainingCredits} credits. Lack of CME might affect your practice certificate.`,
+        ? `Bác sĩ vẫn thiếu ${remainingCredits} tín chỉ trong 5 năm gần nhất. Cần rà soát lại chứng chỉ và bổ sung khóa học hợp lệ.`
+        : `You are still missing ${remainingCredits} credits in the last 5 years. Please review certificates and add eligible courses.`,
       icon: faTriangleExclamation,
     },
     overdue: {
       border: 'border-red-350 bg-red-50/40 dark:border-red-900/50 dark:bg-red-950/20',
       iconBg: 'bg-red-500/10 text-red-650 dark:text-red-400',
-      title: isVi ? 'HỒ SƠ QUÁ HẠN CHU KỲ CME' : 'CME CYCLE OVERDUE',
+      title: isVi ? 'HỒ SƠ CME CHƯA ĐẠT' : 'CME RECORD INCOMPLETE',
       desc: isVi 
-        ? `Chu kỳ 5 năm của bác sĩ đã kết thúc nhưng hồ sơ vẫn thiếu so với mục tiêu. Bác sĩ cần sớm bổ sung các chứng nhận CME theo Thông tư 32/2023/TT-BYT.`
-        : `Your 5-year cycle has ended but your record is short of the target. Please upload missing CME certificates as soon as possible.`,
+        ? `Hồ sơ vẫn thiếu so với mục tiêu tín chỉ khi tính theo 5 năm gần nhất. Bác sĩ cần sớm bổ sung các chứng nhận CME phù hợp.`
+        : `Your record is short of the target in the rolling 5-year window. Please upload eligible CME certificates as soon as possible.`,
       icon: faTriangleExclamation,
     }
   }

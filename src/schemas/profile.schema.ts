@@ -9,7 +9,6 @@ export const profileSchema = z.object({
   province: z.string().min(2, 'Tỉnh/Thành phố là bắt buộc'),
   cchn_number: z.string().min(2, 'Số CCHN/Mã định danh là bắt buộc'),
   cchn_issued_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Ngày cấp CCHN không hợp lệ (yyyy-MM-dd)'),
-  cchn_cycle_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Ngày bắt đầu chu kỳ không hợp lệ (yyyy-MM-dd)'),
   cme_target_credits: z.coerce.number().min(1, 'Mục tiêu tín chỉ phải lớn hơn 0').default(120),
   cme_min_per_year: z.coerce.number().min(0).default(12),
 })

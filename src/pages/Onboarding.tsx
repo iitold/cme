@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useForm, useWatch } from 'react-hook-form'
+import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { 
@@ -24,7 +24,6 @@ import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
-import { addYears, formatVietnamDate } from '../lib/date'
 import { toast } from 'sonner'
 
 export const Onboarding: React.FC = () => {
@@ -37,7 +36,7 @@ export const Onboarding: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const { register, handleSubmit, control, formState: { errors } } = useForm<ProfileSchemaInput>({
+  const { register, handleSubmit, formState: { errors } } = useForm<ProfileSchemaInput>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     resolver: zodResolver(profileSchema) as any,
     defaultValues: {
@@ -46,14 +45,6 @@ export const Onboarding: React.FC = () => {
       cme_min_per_year: 12,
     }
   })
-
-  // Watch cycle start date to show computed end date automatically
-  const cycleStart = useWatch({ control, name: 'cchn_cycle_start' })
-  const getCycleEndDisplay = () => {
-    if (!cycleStart) return t.cycleEndAuto
-    const end = addYears(cycleStart, 5)
-    return end ? formatVietnamDate(end) : (language === 'vi' ? 'Ngày không hợp lệ' : 'Invalid date')
-  }
 
   const onSubmit = async (data: ProfileSchemaInput) => {
     if (!user) return
@@ -71,7 +62,7 @@ export const Onboarding: React.FC = () => {
           phone: data.phone || null,
           cchn_number: data.cchn_number,
           cchn_issued_date: data.cchn_issued_date,
-          cchn_cycle_start: data.cchn_cycle_start,
+          cchn_cycle_start: data.cchn_issued_date,
           specialty: data.specialty,
           workplace: data.workplace,
           province: data.province,
@@ -227,21 +218,6 @@ export const Onboarding: React.FC = () => {
                   <Label htmlFor="cchn_issued_date" className="text-xs">{t.cchnIssuedDate} *</Label>
                   <Input id="cchn_issued_date" className="text-xs" type="date" {...register('cchn_issued_date')} />
                   {errors.cchn_issued_date && <p className="text-[10px] text-destructive mt-0.5">{errors.cchn_issued_date.message}</p>}
-                </div>
-
-                <div className="space-y-1">
-                  <Label htmlFor="cchn_cycle_start" className="text-xs">{t.cchnCycleStart} *</Label>
-                  <Input id="cchn_cycle_start" className="text-xs" type="date" {...register('cchn_cycle_start')} />
-                  {errors.cchn_cycle_start && <p className="text-[10px] text-destructive mt-0.5">{errors.cchn_cycle_start.message}</p>}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="space-y-1">
-                  <Label className="text-xs">{t.cchnCycleEnd}</Label>
-                  <div className="flex h-9 w-full rounded bg-secondary/60 px-3 py-2 text-xs font-semibold text-primary items-center border border-border/40 select-none">
-                    {getCycleEndDisplay()}
-                  </div>
                 </div>
 
                 <div className="space-y-1">

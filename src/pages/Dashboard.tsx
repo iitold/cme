@@ -73,7 +73,6 @@ export const Dashboard: React.FC = () => {
       {cmeStatus && (
         <AlertBanner
           alertLevel={cmeStatus.alertLevel}
-          monthsRemaining={cmeStatus.monthsRemaining}
           remainingCredits={cmeStatus.remainingCredits}
         />
       )}
@@ -113,8 +112,8 @@ export const Dashboard: React.FC = () => {
         <div className="md:col-span-2 space-y-6">
           {cmeStatus && (
             <CycleCountdown
-              daysRemaining={cmeStatus.daysRemaining}
-              cycleEndDate={cmeStatus.cycleEndDate}
+              windowStartDate={cmeStatus.windowStartDate}
+              windowEndDate={cmeStatus.windowEndDate}
             />
           )}
 
@@ -141,7 +140,11 @@ export const Dashboard: React.FC = () => {
                 </div>
                 <div>
                   <span className="text-muted-foreground">{t.cchnCycleStart}</span>
-                  <p className="font-semibold text-foreground mt-0.5">{formatVietnamDate(doctor.cchn_cycle_start)}</p>
+                  <p className="font-semibold text-foreground mt-0.5">
+                    {cmeStatus
+                      ? `${formatVietnamDate(cmeStatus.windowStartDate)} - ${formatVietnamDate(cmeStatus.windowEndDate)}`
+                      : 'N/A'}
+                  </p>
                 </div>
               </div>
             </CardContent>

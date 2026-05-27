@@ -296,8 +296,17 @@ export const AdminConsole: React.FC = () => {
       setEditingDoctor(null)
       loadData()
     } catch (err: unknown) {
+      const status = typeof err === 'object' && err !== null && 'status' in err ? Number(err.status) : null
       const message = err instanceof Error ? err.message : String(err)
-      toast.error(message)
+      const isRateLimited = status === 429 || /rate|too many/i.test(message)
+
+      toast.error(
+        isRateLimited
+          ? (language === 'vi'
+            ? 'Supabase đang giới hạn số lần gửi email khôi phục. Vui lòng chờ vài phút rồi thử lại.'
+            : 'Supabase is rate-limiting password reset emails. Please wait a few minutes and try again.')
+          : message
+      )
     } finally {
       setIsSubmitting(false)
     }

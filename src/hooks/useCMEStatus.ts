@@ -11,7 +11,6 @@ export function useCMEStatus(): CMEStatus | null {
   return useMemo(() => {
     if (!doctor) return null
     return calculateCMEStatus(courses, {
-      cchn_cycle_start: doctor.cchn_cycle_start,
       cme_target_credits: doctor.cme_target_credits,
     })
   }, [courses, doctor])

@@ -6,8 +6,8 @@ export interface Doctor {
   phone?: string
   cchn_number?: string
   cchn_issued_date?: string
-  cchn_cycle_start: string
-  cchn_cycle_end: string
+  cchn_cycle_start?: string
+  cchn_cycle_end?: string
   specialty?: string
   workplace?: string
   province?: string
@@ -64,9 +64,8 @@ export interface CMEStatus {
   targetCredits: number
   remainingCredits: number
   progressPercent: number
-  cycleEndDate: Date
-  daysRemaining: number
-  monthsRemaining: number
+  windowStartDate: Date
+  windowEndDate: Date
   alertLevel: AlertLevel
   isComplete: boolean
 }
