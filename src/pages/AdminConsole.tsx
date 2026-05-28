@@ -58,6 +58,7 @@ interface AdminDashboardStats {
 
 const DOCTORS_PAGE_SIZE = 50
 const RESET_REQUESTS_LIMIT = 50
+const ENABLE_ADMIN_STATS_RPC = import.meta.env.VITE_ENABLE_ADMIN_STATS_RPC === 'true'
 
 function normalizePostgrestSearchTerm(value: string) {
   return value.trim().replace(/[,%()"]/g, ' ').replace(/\s+/g, ' ')
@@ -230,9 +231,10 @@ export const AdminConsole: React.FC = () => {
   const loadDashboardData = useCallback(async (showSpinner = false) => {
     if (showSpinner) setLoading(true)
     try {
-      const { data: rpcStats, error: rpcStatsError } = await supabase.rpc('admin_dashboard_stats')
+      if (ENABLE_ADMIN_STATS_RPC) {
+        const { data: rpcStats, error: rpcStatsError } = await supabase.rpc('admin_dashboard_stats')
+        if (rpcStatsError) throw rpcStatsError
 
-      if (!rpcStatsError && rpcStats) {
         const parsedStats = rpcStats as AdminDashboardStats
         setStats({
           totalDoctors: Number(parsedStats.totalDoctors || 0),
@@ -242,7 +244,6 @@ export const AdminConsole: React.FC = () => {
           provinceCounts: localizeCountLabels(parsedStats.provinceCounts || {}, language),
         })
       } else {
-        // Fallback keeps old deployments usable until the aggregate RPC migration is applied.
         await loadDashboardDataFallback()
       }
 
